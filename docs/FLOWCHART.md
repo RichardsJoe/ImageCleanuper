@@ -13,7 +13,7 @@ flowchart TD
     ZIP["Zip into one archive<br/>keeps original folder paths"]
     VER{"Every file in the zip<br/>matches its hash?"}
     STOP["Stop and report<br/>nothing touched"]
-    STORE["Save archive + manifest<br/>to C:\\MasterPhotoBackup"]
+    STORE["Save archive + manifest<br/>to C:\MasterPhotoBackup"]
   end
 
   subgraph P1["2 · Analyze (originals read-only)"]
