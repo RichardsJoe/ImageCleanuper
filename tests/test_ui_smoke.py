@@ -13,6 +13,10 @@ def test_screens_open(env):
     except tk.TclError:
         pytest.skip("no display")
     try:
+        from images import save_jpeg, scene
+        from imagecleanuper.app import Runner
+        save_jpeg(scene(1), m1 / "a.jpg", date="2019:12:25 10:00:00", make="Apple")
+        Runner(paths, s).run()  # so Home shows the "What the app found" panel
         app.settings = s
         for show in (app.show_setup_folders, app.show_setup_locations, app.show_setup_ready,
                      app.show_home, app.show_settings, app.show_restore, app.show_hotkeys):

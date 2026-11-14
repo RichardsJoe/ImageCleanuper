@@ -83,6 +83,67 @@ MIGRATIONS: list[str] = [
         updated_at REAL NOT NULL
     );
     """,
+    # 2: phase 2 analysis
+    """
+    CREATE TABLE assets (
+        id INTEGER PRIMARY KEY,
+        file_id INTEGER NOT NULL REFERENCES files(id),
+        kind TEXT NOT NULL,                           -- whole | cutout
+        cutout_index INTEGER,
+        derived_path TEXT,                            -- fixed/cut image in data\\derived, else NULL
+        width INTEGER, height INTEGER,
+        created_at REAL NOT NULL
+    );
+    CREATE INDEX assets_file ON assets(file_id);
+    CREATE TABLE fixes (
+        asset_id INTEGER PRIMARY KEY REFERENCES assets(id),
+        exif_rotation INTEGER NOT NULL DEFAULT 0,     -- applied from camera info
+        rotation INTEGER NOT NULL DEFAULT 0,          -- extra rotation (sideways check)
+        rotation_conf REAL,
+        trim_box TEXT,                                -- "left,top,right,bottom" or NULL
+        trim_conf REAL,
+        cut_conf REAL,                                -- cut-outs only
+        status TEXT NOT NULL DEFAULT 'none'           -- none | auto | review | accepted | undone
+    );
+    CREATE TABLE meta (
+        asset_id INTEGER PRIMARY KEY REFERENCES assets(id),
+        exif_date TEXT, exif_date_raw TEXT,
+        camera_make TEXT, camera_model TEXT, software TEXT,
+        google_date TEXT, filename_date TEXT,
+        is_scan INTEGER NOT NULL DEFAULT 0,
+        scan_conf REAL, scan_reason TEXT
+    );
+    CREATE TABLE hashes (
+        asset_id INTEGER PRIMARY KEY REFERENCES assets(id),
+        phash TEXT, dhash TEXT,
+        pixels INTEGER
+    );
+    CREATE TABLE dates (
+        asset_id INTEGER PRIMARY KEY REFERENCES assets(id),
+        date TEXT,                                    -- YYYY-MM-DD or NULL
+        year_only INTEGER NOT NULL DEFAULT 0,
+        source TEXT NOT NULL,                         -- exif|google|filename|similar|folder|unknown
+        borrowed_from INTEGER,
+        is_guess INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE holidays (
+        asset_id INTEGER PRIMARY KEY REFERENCES assets(id),
+        holiday TEXT,                                 -- key, e.g. christmas, or NULL
+        source TEXT                                   -- date | folder
+    );
+    CREATE TABLE dup_groups (
+        id INTEGER PRIMARY KEY,
+        kind TEXT NOT NULL                            -- exact | near
+    );
+    CREATE TABLE dup_members (
+        group_id INTEGER NOT NULL REFERENCES dup_groups(id),
+        asset_id INTEGER NOT NULL REFERENCES assets(id),
+        is_kept INTEGER NOT NULL DEFAULT 0,
+        user_choice TEXT,                             -- keep_both | keep_this (from the review screen)
+        PRIMARY KEY (group_id, asset_id)
+    );
+    CREATE INDEX dup_members_asset ON dup_members(asset_id);
+    """,
 ]
 
 

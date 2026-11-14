@@ -287,11 +287,11 @@ class App(ctk.CTk):
     # ---- setup step 3: ready ---------------------------------------------------
     def show_setup_ready(self):
         b = self._screen("Ready for your first run",
-                         "In this version the run finds every photo and video and makes a verified backup. "
-                         "Your photos are not moved or changed. Sorting comes in the next versions.")
+                         "Your photos are not moved or changed in this version. Sorting comes in a later version.")
         for n, title, text in (("1", "Find", "Every photo and video in your folders, however deeply nested."),
                                ("2", "Back up", "Everything is zipped to your backup folder and checked file by file."),
-                               ("3", "Done", "You can stop any time; the next run continues where it stopped.")):
+                               ("3", "Look", "Dates, holidays, duplicates, old scans (cut apart), rotation and borders."),
+                               ("4", "Done", "You can stop any time; the next run continues where it stopped.")):
             row = ctk.CTkFrame(b, fg_color="transparent")
             row.pack(fill="x", pady=8)
             ctk.CTkLabel(row, text=n, width=36, height=36, corner_radius=18, fg_color=BLUE,
@@ -310,11 +310,11 @@ class App(ctk.CTk):
         nxt = ctk.CTkFrame(b, border_width=1, border_color=BLUE)
         nxt.pack(fill="x", pady=(8, 16))
         if last is None:
-            step, sub = "Run your first backup", "Finds every photo and video and backs it up."
+            step, sub = "Run your first scan", "Backs up every photo and video, then works out dates, duplicates and scans."
         elif last["state"] in ("crashed", "stopped"):
             step, sub = "Continue the last run", "It stopped early. Nothing was lost."
         else:
-            step, sub = "Run again", "Backs up any new photos. Sorting arrives in the next version."
+            step, sub = "Run again", "Picks up any new photos. Your photos aren't moved yet; sorting comes in a later version."
         ctk.CTkLabel(nxt, text="NEXT STEP", text_color=BLUE, font=ctk.CTkFont(size=12, weight="bold"),
                      anchor="w").pack(fill="x", padx=20, pady=(14, 0))
         ctk.CTkLabel(nxt, text=step, font=ctk.CTkFont(size=19, weight="bold"), anchor="w").pack(fill="x", padx=20)
@@ -332,6 +332,8 @@ class App(ctk.CTk):
         stats = (f"{plural(info['photos'], 'photo')} and {plural(info['videos'], 'video')} found · "
                  f"{info['backed_up']:,} backed up in {plural(info['parts'], 'verified zip part')}")
         ctk.CTkLabel(b, text=stats, anchor="w").pack(fill="x", pady=(24, 4))
+        if info.get("analyzed"):
+            self._found_panel(b, info)
         if last:
             ctk.CTkLabel(b, text=f"Last run: #{last['id']} · {last['state']}" +
                          (f" · {last['message']}" if last.get("message") else ""),
@@ -341,6 +343,35 @@ class App(ctk.CTk):
                          justify="left").pack(fill="x")
         ctk.CTkLabel(b, text="Enter Next step · R Run · F1 All hotkeys", text_color=MUTED,
                      anchor="w").pack(side="bottom", fill="x")
+
+    def _found_panel(self, b, info):
+        """What phase 2 worked out. Read-only for now; the review screens come in later phases."""
+        box = ctk.CTkFrame(b)
+        box.pack(fill="x", pady=(12, 4))
+        ctk.CTkLabel(box, text="What the app found", font=ctk.CTkFont(size=15, weight="bold"),
+                     anchor="w").pack(fill="x", padx=16, pady=(12, 4))
+        src = info.get("date_sources", {})
+        dated = sum(v for k, v in src.items() if k != "unknown")
+        guesses = src.get("similar", 0) + src.get("folder", 0)
+        hol = info.get("holidays", {})
+        from ..dates import HOLIDAY_NAMES
+        top = ", ".join(f"{HOLIDAY_NAMES.get(k, k.split(':', 1)[-1])} {v}" for k, v in list(hol.items())[:4])
+        lines = [
+            f"Dates: {dated:,} dated ({src.get('exif', 0):,} from the camera, {src.get('filename', 0):,} from file "
+            f"names, {guesses:,} best guesses) · {src.get('unknown', 0):,} unknown",
+            f"Holidays: {sum(hol.values()):,} photos" + (f" ({top})" if top else ""),
+            f"Duplicates: {plural(info.get('dup_extras', 0), 'extra copy').replace('copys', 'copies')} "
+            f"in {plural(info.get('dup_groups', 0), 'group')}",
+            f"Old scans: {plural(info.get('scans', 0), 'scan')}, cut into {plural(info.get('cutouts', 0), 'photo')}",
+            f"Fixed: {plural(info.get('fixed', 0), 'photo')} rotated or trimmed"
+            + (f" · {info['to_check']:,} to check later" if info.get("to_check") else ""),
+        ]
+        if info.get("could_not_open"):
+            lines.append(f"Couldn't open: {plural(info['could_not_open'], 'file')}")
+        for line in lines:
+            ctk.CTkLabel(box, text=line, anchor="w", justify="left", wraplength=840).pack(fill="x", padx=16)
+        ctk.CTkLabel(box, text="Nothing has been moved. Your originals are untouched.", text_color=MUTED,
+                     anchor="w").pack(fill="x", padx=16, pady=(4, 12))
 
     def ask_resume(self):
         r = self.state_info.crashed_run

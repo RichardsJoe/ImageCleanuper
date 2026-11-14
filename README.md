@@ -8,13 +8,13 @@ See the [process flowchart](docs/FLOWCHART.md), the [app wireframes](docs/WIREFR
 
 | Phase | What it does | State |
 |---|---|---|
-| 1 Foundation | Settings, find every photo/video in nested folders, verified incremental zip backup, crash recovery, Restore, learned-data backup, Windows installer | **Built** |
-| 2 Analysis | Dates, holidays, duplicates, rotation, trim, scan detection and splitting | Next |
-| 3 People & categories | Faces, Who is this?, pets, categories, Junk, learning | Planned |
+| 1 Foundation | Settings, find every photo/video in nested folders, verified incremental zip backup, crash recovery, Restore, learned-data backup, Windows installer | **Built** (0.1) |
+| 2 Analysis | Dates (camera, file name, similar photo, folder clue), US holidays + custom events, exact/near duplicates, camera rotation, border trim, scan detection and splitting | **Built** (0.2) |
+| 3 People & categories | Faces, Who is this?, pets, categories, Junk, learning, sideways check | Next |
 | 4 Sorting | Plan, report, library sync, accuracy check, Finish | Planned |
 | 5 Extras | Google Photos import, optional Claude, polish | Planned |
 
-Version 0.1 does **not** move, rename or change any photo. It only finds them and makes a verified backup.
+Versions 0.1–0.2 do **not** move, rename or change any original photo. They find, back up and analyze; fixed versions (rotated, trimmed, cut out of scans) are saved separately in the app's `data\derived` folder.
 
 ## Install (Windows)
 

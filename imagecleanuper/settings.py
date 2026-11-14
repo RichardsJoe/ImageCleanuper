@@ -41,6 +41,7 @@ class Settings:
     holiday_country: str = "US"
     holiday_windows: dict[str, tuple[int, int]] = field(
         default_factory=lambda: dict(DEFAULT_HOLIDAY_WINDOWS))
+    custom_events: list[tuple[str, int, int, int, int]] = field(default_factory=list)  # name, month, day, before, after
     claude_enabled: bool = False
     claude_model: str = "claude-sonnet-5-5"
     claude_monthly_limit_usd: float = 5.0
@@ -119,6 +120,19 @@ def load(path: Path) -> tuple[Settings, list[str]]:
                     s.holiday_windows[name] = (before, after)
                 except ValueError:
                     problems.append(f"[Holidays] {k} should look like '2,2' (days before, after).")
+    for sec in cp.sections():
+        if sec.lower().startswith("event:"):
+            name = sec.split(":", 1)[1].strip()
+            try:
+                month = cp.getint(sec, "month")
+                day = cp.getint(sec, "day")
+                before, after = (int(x) for x in cp[sec].get("window", "0,0").split(","))
+                import datetime as _dt
+                _dt.date(2000, month, day)  # validates the date (2000 allows Feb 29)
+                if name:
+                    s.custom_events.append((name, month, day, max(0, before), max(0, after)))
+            except (ValueError, TypeError, configparser.Error):
+                problems.append(f"[{sec}] needs month = 1-12, day = 1-31 and window = before,after.")
     if cp.has_section("Claude"):
         c = cp["Claude"]
         s.claude_enabled = c.get("enabled", "no").strip().lower() in ("yes", "true", "1", "on")
@@ -217,6 +231,8 @@ def save(s: Settings, path: Path) -> None:
     cp["Holidays"] = {"country": s.holiday_country}
     for k, (b, a) in s.holiday_windows.items():
         cp["Holidays"][f"window.{k}"] = f"{b},{a}"
+    for name, month, day, before, after in s.custom_events:
+        cp[f"Event:{name}"] = {"month": str(month), "day": str(day), "window": f"{before},{after}"}
     cp["Claude"] = {"enabled": "yes" if s.claude_enabled else "no", "model": s.claude_model,
                     "monthly_limit_usd": str(s.claude_monthly_limit_usd)}
     buf = io.StringIO()

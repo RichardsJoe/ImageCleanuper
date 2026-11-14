@@ -41,12 +41,14 @@ jobs:
       - name: Build app with PyInstaller
         run: >
           pyinstaller --noconfirm --windowed --name ImageCleanuper
-          --collect-data customtkinter run_app.py
+          --collect-data customtkinter --collect-all pillow_heif run_app.py
 
       - name: Check the built app starts
         run: |
           $p = Start-Process -FilePath "dist\ImageCleanuper\ImageCleanuper.exe" -ArgumentList "--version" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "ImageCleanuper.exe --version exited with $($p.ExitCode)" }
+          $p = Start-Process -FilePath "dist\ImageCleanuper\ImageCleanuper.exe" -ArgumentList "--selftest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "ImageCleanuper.exe --selftest exited with $($p.ExitCode)" }
 
       - name: Build installer
         run: |

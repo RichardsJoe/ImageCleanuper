@@ -12,7 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import backup, discover, learned, log, settings as settings_mod
+from . import backup, compare, dates, discover, learned, log, settings as settings_mod
+from .analyze import run as analyze_run
 from .catalog import Catalog, default_catalog_path
 from .log import UserError
 from .paths import app_dir, data_dir
@@ -139,7 +140,18 @@ class Runner:
                     raise UserError("Some photos couldn't be backed up, so nothing else was done.",
                                     "Check the log for the files involved and run again.")
 
-                # Phase 2+ steps go here: analyze, compare, dates, people, plan, sync ...
+                cat.set_run(run_id, last_step="analyze")
+                counts["analyze"] = analyze_run.analyze_pending(cat, str(self.paths.data / "derived"), self._prog)
+
+                cat.set_run(run_id, last_step="compare")
+                self._prog("Comparing photos", 0, 0)
+                counts["compare"] = compare.compare_all(cat)
+
+                cat.set_run(run_id, last_step="dates")
+                self._prog("Working out dates and holidays", 0, 0)
+                counts["dates"] = dates.resolve_all(cat, self.settings)
+
+                # Phase 3+ steps go here: people, learning, plan, sync ...
 
                 cat.set_run(run_id, last_step="learned_backup")
                 learned.backup_learned_data(self.paths.catalog, self.paths.data, self.settings.backup,
@@ -176,6 +188,19 @@ def summary(paths: AppPaths) -> dict:
                 "WHERE p.verified=1"),
             "parts": cat.scalar("SELECT COUNT(*) FROM backup_parts WHERE verified=1"),
             "last_run": dict(last) if last else None,
+            "analyzed": cat.scalar("SELECT COUNT(*) FROM files WHERE missing=0 AND status='analyzed'"),
+            "could_not_open": cat.scalar("SELECT COUNT(*) FROM files WHERE missing=0 AND status='could_not_open'"),
+            "date_sources": {r[0]: r[1] for r in cat.q("SELECT source, COUNT(*) FROM dates GROUP BY source")},
+            "year_only": cat.scalar("SELECT COUNT(*) FROM dates WHERE year_only=1"),
+            "holidays": {r[0]: r[1] for r in cat.q(
+                "SELECT holiday, COUNT(*) FROM holidays GROUP BY holiday ORDER BY COUNT(*) DESC")},
+            "scans": cat.scalar("SELECT COUNT(DISTINCT a.file_id) FROM meta m JOIN assets a ON a.id=m.asset_id "
+                                "WHERE m.is_scan=1"),
+            "cutouts": cat.scalar("SELECT COUNT(*) FROM assets WHERE kind='cutout'"),
+            "fixed": cat.scalar("SELECT COUNT(*) FROM fixes WHERE status='auto' OR exif_rotation<>0"),
+            "to_check": cat.scalar("SELECT COUNT(*) FROM fixes WHERE status='review'"),
+            "dup_groups": cat.scalar("SELECT COUNT(*) FROM dup_groups"),
+            "dup_extras": cat.scalar("SELECT COUNT(*) FROM dup_members WHERE is_kept=0"),
         }
     finally:
         cat.close()

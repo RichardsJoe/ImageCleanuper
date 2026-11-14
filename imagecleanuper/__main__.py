@@ -59,6 +59,9 @@ def main() -> int:
     if "--version" in argv:
         print(__version__)
         return 0
+    if "--selftest" in argv:
+        from .selftest import run as selftest
+        return selftest()
     lock = SingleInstance()
     if not lock.acquire():
         print("ImageCleanuper is already running.")
