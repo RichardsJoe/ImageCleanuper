@@ -45,7 +45,7 @@ flowchart TD
     YEAR["Year<br/>from date taken"]
     HOL["Holiday<br/>date vs. US calendar"]
     SCANQ{"Old scanned photo?"}
-    OLD["Old Family Photos/"]
+    OLD["Old Family Photos/<br/>same layout: Year/Holidays · Year/People · Year/Pets · Year/Other<br/>Unknown Year if undated"]
     DEST["Destinations<br/>Year/Holidays · Year/People · Year/Pets · Year/Other"]
     DRY["Dry-run report"]
     OK{"Plan looks right?"}
@@ -79,8 +79,10 @@ flowchart TD
   DB -- "all faces" --> MATCH
   MATCH -- "unsure faces" --> REV
   MATCH --> DUP --> SCANQ
-  SCANQ -- "yes" --> OLD --> DRY
-  SCANQ -- "no" --> YEAR --> HOL --> DEST --> DRY --> OK
+  SCANQ -- "yes: under Old Family Photos/" --> YEAR
+  SCANQ -- "no: main library" --> YEAR
+  YEAR --> HOL --> DEST --> DRY --> OK
+  DEST -. "scans" .-> OLD
   OK -- "no: change settings" --> DUP
   OK -- "yes" --> OUT --> CHK
   CHK -- "no" --> STOP
@@ -115,14 +117,14 @@ flowchart TD
 - **Holidays:** US calendar (Thanksgiving, July 4th, etc.), with adjustable windows and your own custom events.
 - **Missing dates:** date taken (EXIF), then a date in the filename, then the date of a highly similar photo, then a clue in the folder names (e.g. `Grandma 1985`, `Christmas 2015`, nearest folder first), otherwise `Unknown Date`. The file's modified date is not used.
 - **Folder-name clues** can also give a holiday: a photo with no date inside `Christmas 2015` is filed under Christmas 2015. Folder names are used only as clues for undated photos, never to decide where a dated photo goes.
-- **Old scanned photos go to `Old Family Photos/`**, separate from the year folders. A photo counts as an old scan if it was cut out of a multi-photo scan, its file says it came from a scanner, or it sits in a master folder you mark as scans in the settings.
+- **Old scanned photos go to `Old Family Photos/`**, separate from the main library but with the same layout inside: `Old Family Photos/1985/Holidays/Christmas`, `…/People/Grandma`, `…/Pets`, `…/Other`, and `Old Family Photos/Unknown Year/…` for undated ones. A photo counts as an old scan if it was cut out of a multi-photo scan, its file says it came from a scanner, or it sits in a master folder you mark as scans in the settings.
 - **Runs locally** on Windows 11 with the RTX 2070 Super. Free; no photos leave the PC.
 - **Python**, in this repo.
 - **No code yet.** Coding starts only when you say so.
 
 ## Open questions
 
-- **Inside `Old Family Photos/`:** keep them all in one folder, or use the same layout as the main library (`Old Family Photos/1985/People/Grandma`, with `Unknown Year` for undated ones)?
+- None right now. Coding starts when you say go.
 
 ## Change log
 
@@ -136,3 +138,4 @@ flowchart TD
 8. 2026-11-14 · v8: Backups go to C:\MasterPhotoBackup as dated zips; backup and output folders excluded from collection.
 9. 2026-11-14 · v9: Old scans go to Old Family Photos/; folder names used as date and holiday clues for undated photos.
 10. 2026-11-14 · v10: Needs Review/ folder for unsure faces, pets and scan cut-outs; your labels there retrain the models on the next run.
+11. 2026-11-14 · v11: Old Family Photos/ uses the same Year / Holidays / People / Pets / Other layout.
