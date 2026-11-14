@@ -27,6 +27,7 @@ flowchart TD
     PET["Pet check<br/>dog / cat"]
     NODATE{"Date found?"}
     SIM["Borrow date from a<br/>highly similar photo"]
+    FOLD["Date clue in folder names<br/>e.g. Grandma 1985, Christmas 2015"]
     UNK["Unknown Date"]
     DB[("Catalog")]
   end
@@ -42,6 +43,8 @@ flowchart TD
     DUP["Duplicates<br/>keep best copy, extras → Duplicates/"]
     YEAR["Year<br/>from date taken"]
     HOL["Holiday<br/>date vs. US calendar"]
+    SCANQ{"Old scanned photo?"}
+    OLD["Old Family Photos/"]
     DEST["Destinations<br/>Year/Holidays · Year/People · Year/Pets · Year/Other"]
     DRY["Dry-run report"]
     OK{"Plan looks right?"}
@@ -64,12 +67,16 @@ flowchart TD
   NODATE -- "yes" --> DB
   NODATE -- "no" --> SIM
   SIM -- "match found" --> DB
-  SIM -- "no match" --> UNK --> DB
+  SIM -- "no match" --> FOLD
+  FOLD -- "clue found" --> DB
+  FOLD -- "no clue" --> UNK --> DB
   DB -- "unnamed faces" --> GRP --> NAME -- "saves" --> LIB
   LIB --> MATCH
   DB -- "all faces" --> MATCH
   MATCH -- "unsure faces held for next review" --> GRP
-  MATCH --> DUP --> YEAR --> HOL --> DEST --> DRY --> OK
+  MATCH --> DUP --> SCANQ
+  SCANQ -- "yes" --> OLD --> DRY
+  SCANQ -- "no" --> YEAR --> HOL --> DEST --> DRY --> OK
   OK -- "no: change settings" --> DUP
   OK -- "yes" --> OUT --> CHK
   CHK -- "no" --> STOP
@@ -93,22 +100,23 @@ flowchart TD
 - **Name clashes:** files from different folders with the same name (e.g. many `IMG_0001.jpg`) get a suffix like `IMG_0001_2.jpg` in the sorted output.
 - **Multi-photo scans are split.** When one scan holds several photos, each photo is cut out, straightened and saved as its own image, then goes through the rest of the pipeline like any other photo. The original scan stays in the backup zip.
 - **Border trim:** excess white or black background around a photo is cropped off.
-- **Scanner dates are ignored.** A scan's date is the day it was scanned, not when the photo was taken, so scans go straight to the similar-photo check and then `Unknown Date`.
+- **Scanner dates are ignored.** A scan's date is the day it was scanned, not when the photo was taken, so scans skip straight to the similar-photo and folder-name checks.
 - **Hard links:** rotated, cropped or cut-out photos are saved as normal copies; untouched photos can be hard links.
 - **Originals are never edited.** Rotation and crop fixes are written to the sorted copies only. The zip keeps the untouched originals.
 - **Layout:** `Year/Holidays/<holiday>`, `Year/People/<name>`, `Year/Pets`, `Year/Other`, plus `Duplicates/`. A photo goes into every folder it belongs to.
 - **Output mode is a setting:** copy, hard link (one copy on disk, same drive only) or move.
 - **People:** local face recognition. Faces are grouped first, then you name the groups.
 - **Holidays:** US calendar (Thanksgiving, July 4th, etc.), with adjustable windows and your own custom events.
-- **Missing dates:** date taken (EXIF), then a date in the filename, then the date of a highly similar photo, otherwise `Unknown Date`. The file's modified date is not used.
+- **Missing dates:** date taken (EXIF), then a date in the filename, then the date of a highly similar photo, then a clue in the folder names (e.g. `Grandma 1985`, `Christmas 2015`, nearest folder first), otherwise `Unknown Date`. The file's modified date is not used.
+- **Folder-name clues** can also give a holiday: a photo with no date inside `Christmas 2015` is filed under Christmas 2015. Folder names are used only as clues for undated photos, never to decide where a dated photo goes.
+- **Old scanned photos go to `Old Family Photos/`**, separate from the year folders. A photo counts as an old scan if it was cut out of a multi-photo scan, its file says it came from a scanner, or it sits in a master folder you mark as scans in the settings.
 - **Runs locally** on Windows 11 with the RTX 2070 Super. Free; no photos leave the PC.
 - **Python**, in this repo.
 - **No code yet.** Coding starts only when you say so.
 
 ## Open questions
 
-- **Dates for old scanned photos:** most will end up in `Unknown Date`. Is that OK, or would you rather they go in their own `Scanned/` folder, or get dated from folder names (next question)?
-- **Folder names as hints:** you said your folders can *mostly* be ignored. Should a folder name like `Christmas 2015` ever be used as a clue when a photo has no date, or should folder names be ignored completely?
+- **Inside `Old Family Photos/`:** keep them all in one folder, or use the same layout as the main library (`Old Family Photos/1985/People/Grandma`, with `Unknown Year` for undated ones)?
 
 ## Change log
 
@@ -120,3 +128,4 @@ flowchart TD
 6. 2026-11-14 · v6: Search all nested subfolders; existing folder structure ignored for sorting; original paths kept; name clashes get a suffix.
 7. 2026-11-14 · v7: Several master folders; split multi-photo scans into separate images; trim white/black borders; scanner dates ignored; edited photos saved as copies.
 8. 2026-11-14 · v8: Backups go to C:\MasterPhotoBackup as dated zips; backup and output folders excluded from collection.
+9. 2026-11-14 · v9: Old scans go to Old Family Photos/; folder names used as date and holiday clues for undated photos.
