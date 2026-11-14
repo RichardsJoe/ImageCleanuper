@@ -4,7 +4,7 @@ How photos travel from your folders to a sorted library. Nothing is analyzed or 
 
 The cycle: **First-time setup → Run → Review → Run again → … → Finish**
 
-**Legend:** thick green border = safety gate (the run stops if it fails) · blue border = you do this · red = stop · dotted arrow = uses / reads from
+**Legend:** dashed border = optional, off by default · thick green border = safety gate (the run stops if it fails) · blue border = you do this · red = stop · dotted arrow = uses / reads from
 
 ```mermaid
 flowchart TD
@@ -30,7 +30,8 @@ flowchart TD
     FIRST{"First run?"}
     LEARN["Learn from your answers<br/>locked photos win · best samples count most<br/>model saved every 25 labels"]
     PLAN["Plan destinations<br/>Year/Holidays · People · Pets · Scenic · Projects · Videos · Other<br/>Old Family Photos/ uses the same layout"]
-    UNSURE["Unsure items → _Needs Review<br/>blind sample → _QA Check"]
+    CLAUDE["Optional: second opinion from Claude Sonnet 5.5<br/>unsure items only · spending limit"]
+    UNSURE["Still unsure → _Needs Review<br/>blind sample → _QA Check"]
     REPORT["Visual dry-run report<br/>totals · thumbnails · changes · scorecard · needs attention"]
     OK{"Approve?"}
     SYNC["Update library as copies<br/>adds · updates · removes only its own files"]
@@ -67,7 +68,7 @@ flowchart TD
   FIRST -- "yes: name people before the first sort" --> WHO
   WHO -- "then continue" --> LEARN
   FIRST -- "no" --> LEARN
-  LEARN --> PLAN --> UNSURE --> REPORT --> OK
+  LEARN --> PLAN --> CLAUDE --> UNSURE --> REPORT --> OK
   OK -- "not yet: fix things first" --> S3
   OK -- "yes" --> SYNC --> CHK
   CHK -- "no" --> STOP
@@ -80,9 +81,11 @@ flowchart TD
   classDef gate stroke:#2f7d5b,stroke-width:4px
   classDef human stroke:#3b6fb6,stroke-width:3px
   classDef stop stroke:#c0392b,stroke-width:3px
+  classDef optional stroke-dasharray:6 4
   class SAFE,VER,CHK gate
   class SET,WHO,REV,QA,DUPS,OK,FIN human
   class STOP stop
+  class CLAUDE optional
 ```
 
 A **run** is one pass over your whole collection. The first run backs up and analyzes everything, so it's slow. Later runs only handle new photos and your answers, so they take minutes.
@@ -157,13 +160,26 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Best samples (★ B):** mark the clearest examples of a person or category. Later passes weight them most and use them as the reference for matching. The tool also suggests best samples for you to confirm.
 
 ### Using the app
-- **Install:** double-click `Install.bat`. It sets up its own Python, detects the GPU (falling back to CPU if needed) and downloads the models. Then use the `Start ImageCleanuper` shortcut. `Update.bat` pulls new versions without losing settings or learned data. A single `.exe` installer comes later.
+- **Install from GitHub Releases:** a Windows `.exe` installer is built automatically by GitHub Actions for each version and posted on the repo's Releases page. The installer is small (about 50–100 MB) and adds a Start-menu shortcut. No Python or command line needed.
+- **First launch downloads what's needed** (AI engine and models, roughly 300 MB) with a progress bar. Downloads are checked against known fingerprints and resume if the connection drops. After that the app works offline, apart from update checks and Claude if turned on.
+- **AI engine:** ONNX Runtime with DirectML, Windows' built-in way to use the graphics card. Runs on the RTX 2070 Super with no NVIDIA toolkit to install, and falls back to the CPU if needed.
+- **Updates:** the app checks GitHub for a newer release and offers to install it, keeping settings and learned data.
+- **Windows warning:** the `.exe` isn't code-signed, so the first launch shows "Windows protected your PC" (More info → Run anyway). The README explains this.
 - **App window** (CustomTkinter): it always shows the next step, plus Setup / Run / Review / Finish buttons, waiting-item counts, the scorecard, and a progress bar with time remaining. Settings are a form with folder pickers.
 - **Visual dry-run report:** totals, a folder tree with thumbnails, what changed since last run, the scorecard, and a plain-English "Needs attention" list with buttons. Misfiled photos can be corrected right in the report. Approve and sort / Not yet.
 - **Duplicate and junk screens** compare side by side with details. Delete sends files to the Recycle Bin; Keep both and Swap are also available, plus "Delete all exact duplicates".
 - **Hotkeys for every action:** Enter = save, → / Space = next, ← = back, Ctrl+Z = undo, 1–9 = pick an answer, S = Stranger, N = name box, D / K / W = duplicate actions, R / U = rotation actions, L = lock, B = best sample, Esc = close, F1 = list of hotkeys. Keys are shown on buttons and can be changed in `settings.ini`.
 - **Finish** happens once, when you're happy. It moves the originals into the library (fixed photos stay as their fixed versions; originals remain in the backup), then deletes folders left completely empty. Folders with anything else in them are left alone.
-- **Runs locally** on Windows 11 with the RTX 2070 Super. It's free, and no photos leave the PC.
+- **Runs locally** on Windows 11 with the RTX 2070 Super. It's free, and no photos leave the PC unless you turn on Claude.
+
+### Claude (optional)
+- **Off by default.** Turn it on in Settings and enter an Anthropic API key. The key is stored in Windows Credential Manager, not in `settings.ini`.
+- **Default model: Claude Sonnet 5.5**, changeable in Settings.
+- **Used only on items the local models are unsure about:** categories and Junk, holidays, estimating the decade of old scans, rotation, trim, cut-outs, pet or not. Anything Claude is confident about is resolved; the rest still goes to `_Needs Review`.
+- **Not used for recognising who someone is.** Identifying people stays with the local face model and your answers.
+- **Photos are shrunk to about 512px** before sending. A **spending limit** in Settings stops Claude when it's reached, and the app shows the running cost.
+- **Privacy:** photos sent to Claude go to Anthropic's servers. Everything else stays on the PC. The Settings screen says this plainly.
+- **Claude's answers are scored too:** QA checks how often Claude was right, and its answers feed the learning like yours.
 
 ### Not adopted
 - Treating default camera dates (e.g. 1 Jan 2000) as missing: camera dates are trusted as they are.
@@ -188,3 +204,4 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 11. 2026-11-14 · v11: Old Family Photos/ uses the same layout as the main library.
 12. 2026-11-14 · v12: Blind QA sampling with accuracy report.
 13. 2026-11-14 · v13: Full design review applied: stages Setup → Run → Review → Run again → Finish; back up once; Finish step; library kept in sync; copies only (no hard links); 95% date borrowing; videos; Could Not Open; long paths; settings.ini; learned-data backup; Who is this? cards and Strangers; proper-case names; cautious rotation and trim; per-category ratings and shrinking QA; categories and Junk; duplicate screen; hotkeys; locked photos and best samples; app window; visual report; crash recovery; Restore; READ MEs and _ folders; Install.bat.
+14. 2026-11-14 · v14: .exe installer built to GitHub Releases, downloads its AI files on first launch; ONNX Runtime + DirectML instead of PyTorch; optional Claude Sonnet 5.5 second opinion for unsure items, with spending limit; Install.bat dropped.
