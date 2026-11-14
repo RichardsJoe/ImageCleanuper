@@ -6,11 +6,11 @@ How a photo travels from your folders to the sorted library. Nothing is analyzed
 
 ```mermaid
 flowchart TD
-  SRC["Your photo folders"]
+  SRC["Your photo folders<br/>nested any number of levels deep"]
 
   subgraph P0["1 · Backup first"]
-    COL["Collect every image<br/>record SHA-256 of each file"]
-    ZIP["Zip into one archive<br/>stored, not recompressed"]
+    COL["Collect every image from all subfolders<br/>record SHA-256 + original path"]
+    ZIP["Zip into one archive<br/>keeps original folder paths"]
     VER{"Every file in the zip<br/>matches its hash?"}
     STOP["Stop and report<br/>nothing touched"]
     STORE["Save archive + manifest<br/>to backup location"]
@@ -46,7 +46,7 @@ flowchart TD
   end
 
   subgraph P4["5 · Write output"]
-    OUT["Copy / hard link / move<br/>fixed photos saved as new files"]
+    OUT["Copy / hard link / move<br/>name clashes get a suffix"]
     CHK{"Every source image<br/>accounted for?"}
     LOG["Summary + log"]
   end
@@ -83,6 +83,8 @@ flowchart TD
 ## Decided
 
 - **Backup before anything.** All images are collected, zipped and verified against a hash list before any analysis or moving starts.
+- **Your existing folders are ignored for sorting.** The tool searches every subfolder, however deeply nested, and sorts only by date, faces, pets and duplicates. Each photo's original path is kept in the catalog and in the zip, so any photo can be traced back to where it came from.
+- **Name clashes:** files from different folders with the same name (e.g. many `IMG_0001.jpg`) get a suffix like `IMG_0001_2.jpg` in the sorted output.
 - **Originals are never edited.** Rotation and crop fixes are written to the sorted copies only. The zip keeps the untouched originals.
 - **Layout:** `Year/Holidays/<holiday>`, `Year/People/<name>`, `Year/Pets`, `Year/Other`, plus `Duplicates/`. A photo goes into every folder it belongs to.
 - **Output mode is a setting:** copy, hard link (one copy on disk, same drive only) or move.
@@ -98,6 +100,7 @@ flowchart TD
 - **Crop:** what should be cropped? White or black borders on scanned photos, black bars on screenshots, straightening tilted scans, or something else?
 - **Backup location:** where should the zip go? A different drive from the photos (e.g. an external drive) is safest.
 - **Sources:** one photos folder, or several (phone exports, downloads, old drives)?
+- **Folder names as hints:** you said your folders can *mostly* be ignored. Should a folder name like `Christmas 2015` ever be used as a clue when a photo has no date, or should folder names be ignored completely?
 - **Hard links and fixed photos:** a rotated or cropped photo is a new file, so it can't be a hard link to the original. Fine to store those as copies?
 
 ## Change log
@@ -107,3 +110,4 @@ flowchart TD
 3. 2026-11-14 · v3: Verified zip backup before any analysis; rotation and crop step; this flowchart.
 4. 2026-11-14 · v4: US holidays; missing dates borrowed from a highly similar photo, else Unknown Date.
 5. 2026-11-14 · v5: Flowchart moved to this Markdown file so it displays directly on GitHub.
+6. 2026-11-14 · v6: Search all nested subfolders; existing folder structure ignored for sorting; original paths kept; name clashes get a suffix.
