@@ -47,7 +47,10 @@ flowchart TD
     SCANQ{"Old scanned photo?"}
     OLD["Old Family Photos/<br/>same layout: Year/Holidays · Year/People · Year/Pets · Year/Other<br/>Unknown Year if undated"]
     DEST["Destinations<br/>Year/Holidays · Year/People · Year/Pets · Year/Other"]
-    DRY["Dry-run report"]
+    QA["QA Check/<br/>random sample of confident guesses,<br/>answers hidden"]
+    DROP["You drop each photo<br/>where it belongs"]
+    SCORE["Accuracy report<br/>per person, pets, holidays, cut-outs"]
+    DRY["Dry-run report<br/>+ accuracy"]
     OK{"Plan looks right?"}
   end
 
@@ -81,7 +84,8 @@ flowchart TD
   MATCH --> DUP --> SCANQ
   SCANQ -- "yes: under Old Family Photos/" --> YEAR
   SCANQ -- "no: main library" --> YEAR
-  YEAR --> HOL --> DEST --> DRY --> OK
+  YEAR --> HOL --> DEST --> QA --> DROP -- "next run scores" --> SCORE --> DRY --> OK
+  SCORE -- "mistakes become labels" --> LIB
   DEST -. "scans" .-> OLD
   OK -- "no: change settings" --> DUP
   OK -- "yes" --> OUT --> CHK
@@ -93,7 +97,7 @@ flowchart TD
   classDef open stroke:#b7791f,stroke-width:3px,stroke-dasharray:6 4
   classDef stop stroke:#c0392b,stroke-width:3px
   class VER,CHK gate
-  class NAME,OK human
+  class NAME,OK,DROP human
   class STOP stop
 ```
 
@@ -113,6 +117,7 @@ flowchart TD
 - **Output mode is a setting:** copy, hard link (one copy on disk, same drive only) or move.
 - **People:** local face recognition. Faces are grouped first, then you name the groups.
 - **`Needs Review/` folder for anything the tool is unsure about:** unknown or uncertain faces (grouped, so one folder per probable person), possible pets, and scan cut-outs that might be cut wrong. You label them in File Explorer by dragging items into folders named for the answer (e.g. `Calvin`, `Not a pet`, `Cut wrong`). The next run learns from those labels: faces are added to the people library, and pet and scan examples train the checks to make fewer mistakes. Labeled items then get sorted normally.
+- **QA sampling checks the models.** Each run copies a random sample of the tool's *confident* guesses into `QA Check/`, with random file names so the guess isn't given away. Each sample asks one question ("Who is this face?", "Pet or not?", "Which holiday?", "Cut out correctly?") and has answer folders to drop it into. The next run compares your answers with the hidden guesses and reports accuracy per person and per check (e.g. `Calvin 19/20`, `Dad mistaken for Calvin 2×`). Wrong guesses become labels, and a check that scores poorly gets stricter, so more of its guesses go to `Needs Review/` instead. The accuracy shows in the dry-run report before you approve. Sample size is a setting (default 20 per category).
 - **Unsure doesn't block sorting.** Whatever the tool *is* sure about still gets sorted (e.g. a photo is filed under Mom even if a second face in it is unsure); only the unsure part waits in `Needs Review/`.
 - **Holidays:** US calendar (Thanksgiving, July 4th, etc.), with adjustable windows and your own custom events.
 - **Missing dates:** date taken (EXIF), then a date in the filename, then the date of a highly similar photo, then a clue in the folder names (e.g. `Grandma 1985`, `Christmas 2015`, nearest folder first), otherwise `Unknown Date`. The file's modified date is not used.
@@ -139,3 +144,4 @@ flowchart TD
 9. 2026-11-14 · v9: Old scans go to Old Family Photos/; folder names used as date and holiday clues for undated photos.
 10. 2026-11-14 · v10: Needs Review/ folder for unsure faces, pets and scan cut-outs; your labels there retrain the models on the next run.
 11. 2026-11-14 · v11: Old Family Photos/ uses the same Year / Holidays / People / Pets / Other layout.
+12. 2026-11-14 · v12: QA sampling: blind samples in QA Check/, scored on the next run; accuracy in the dry-run report; mistakes retrain the models.
