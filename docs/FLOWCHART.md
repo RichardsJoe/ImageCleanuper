@@ -32,7 +32,7 @@ flowchart TD
     LEARN["Learn from your answers<br/>locked photos win · best samples count most<br/>model saved every 25 labels"]
     PLAN["Plan destinations<br/>Year/Holidays · People · Pets · Scenic · Projects · Videos · Other<br/>Old Family Photos/ uses the same layout"]
     CLAUDE["Optional: second opinion from Claude Sonnet 5.5<br/>unsure items only · spending limit"]
-    UNSURE["Still unsure → _Needs Review<br/>blind sample → _QA Check"]
+    UNSURE["Still unsure → _Needs Review<br/>blind sample → _Accuracy Check"]
     REPORT["Visual dry-run report<br/>totals · thumbnails · changes · scorecard · needs attention"]
     OK{"Approve?"}
     SYNC["Update library as copies<br/>adds · updates · removes only its own files"]
@@ -43,7 +43,7 @@ flowchart TD
   subgraph S3["3 · Review, whenever suits you"]
     WHO["Who is this?<br/>20 people per round · name or Stranger"]
     REV["Needs Review<br/>faces · pets · categories · cut-outs · rotation · trim"]
-    QA["QA Check<br/>blind samples · 50 to start, shrinks as ratings reach 95%"]
+    QA["Accuracy check<br/>blind samples · 50 to start, shrinks as ratings reach 95%"]
     DUPS["Duplicates · Junk<br/>side by side · delete to Recycle Bin or keep"]
   end
 
@@ -109,7 +109,7 @@ A **run** is one pass over your whole collection. The first run backs up and ana
     Original Scans\
   _Add New Photos\
   _Needs Review\
-  _QA Check\
+  _Accuracy Check\
   _Duplicates\
   _Junk\
   _Strangers\
@@ -142,7 +142,7 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Rotation and border trim** (excess white or black background) only act when very sure. Uncertain cases go to Needs Review with before and after side by side: Looks good / Undo / Rotate again.
 - **Old scans are found automatically,** with no folder to point out: cut out of a multi-photo scan, made by a scanner (file info), or looking like a scanned print (paper borders, print texture, no camera info). They go to `Old Family Photos\`, with the same layout as the main library. Unsure cases go to Needs Review, and "Old scan?" is part of the accuracy check.
 - **Dates:** date taken (EXIF), then Google Photos' own date (for Google imports), then a date in the filename, then the date of a similar photo, then a folder-name clue (e.g. `Grandma 1985`), otherwise Unknown. The file's modified date is never used. Scanner dates are ignored.
-- **Borrowed dates** are used only when the AI is at least 95% sure the photo is from the same setting. That cutoff is tuned through "Same event?" QA pairs. Scans only borrow from other scans. Borrowed dates are marked as guesses in the report.
+- **Borrowed dates** are used only when the AI is at least 95% sure the photo is from the same setting. That cutoff is tuned through "Same event?" accuracy-check pairs. Scans only borrow from other scans. Borrowed dates are marked as guesses in the report.
 - **Folder-name clues** can also give a holiday (`Christmas 2015`). They're used only for undated photos.
 - **Holidays:** US calendar with adjustable windows and your own custom events.
 - **Videos** are sorted into `Year\Videos` by date (no face or pet detection).
@@ -157,8 +157,8 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 
 ### Learning and accuracy
 - **`_Needs Review`** holds anything the tool is unsure about. Whatever it *is* sure about still gets sorted; only the unsure part waits.
-- **QA Check** gives blind samples of confident guesses, with random file names and one question each: faces, pets, categories, holidays, cut-outs, rotation, trim, and "Same event?" pairs. Wrong guesses become labels.
-- **A rating for every person and category**, tracked round by round on a scorecard (e.g. `Calvin 97% ↑`, `Scenic 88% ↓`). The target is 95%. QA starts at 50 items and shrinks as ratings reach the target, while weak or dropping ratings get more samples.
+- **Accuracy check** (called QA during planning; folder `_Accuracy Check`) gives blind samples of confident guesses, with random file names and one question each: faces, pets, categories, holidays, cut-outs, rotation, trim, and "Same event?" pairs. Wrong guesses become labels.
+- **A rating for every person and category**, tracked round by round on a scorecard (e.g. `Calvin 97% ↑`, `Scenic 88% ↓`). The target is 95%. The accuracy check starts at 50 items and shrinks as ratings reach the target, while weak or dropping ratings get more samples.
 - **Locked photos:** anything you confirm is locked automatically (or press L). Later runs never move or re-label a locked photo; disagreements count against the model's rating.
 - **Best samples (★ B):** mark the clearest examples of a person or category. Later passes weight them most and use them as the reference for matching. The tool also suggests best samples for you to confirm.
 
@@ -172,7 +172,9 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Visual dry-run report:** totals, a folder tree with thumbnails, what changed since last run, the scorecard, and a plain-English "Needs attention" list with buttons. Misfiled photos can be corrected right in the report. Approve and sort / Not yet.
 - **Duplicate and junk screens** compare side by side with details. Delete sends files to the Recycle Bin; Keep both and Swap are also available, plus "Delete all exact duplicates".
 - **Hotkeys for every action:** Enter = save, → / Space = next, ← = back, Ctrl+Z = undo, 1–9 = pick an answer, S = Stranger, N = name box, D / K / W = duplicate actions, R / U = rotation actions, L = lock, B = best sample, Esc = close, F1 = list of hotkeys. Keys are shown on buttons and can be changed in `settings.ini`.
-- **Finish** happens once, when you're happy. It moves the originals into the library (fixed photos stay as their fixed versions; originals remain in the backup), then deletes folders left completely empty. Folders with anything else in them are left alone.
+- **One Start review button** walks through everything waiting, in a fixed order: Who is this? → Needs review → Accuracy check → Duplicates → Junk. Esc saves your place.
+- **No technical words on screen:** "Accuracy check" instead of QA, "fingerprint" instead of hash, no paths to type.
+- **Finish** happens once, when you're happy, and you confirm it by typing FINISH. It moves the originals into the library (fixed photos stay as their fixed versions; originals remain in the backup), then deletes folders left completely empty. Folders with anything else in them are left alone.
 - **Runs locally** on Windows 11 with the RTX 2070 Super. It's free, and no photos leave the PC unless you turn on Claude.
 
 ### Claude (optional)
@@ -183,11 +185,11 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Photos are shrunk to about 512px** before sending. A **spending limit** in Settings caps what Claude can spend, and the app shows the running cost.
 - **When the limit is reached** the app pops up a notice with the amount spent and how many unsure photos are left, and three choices: **continue with the free local models** (the rest go to Needs Review), **raise the limit** and keep using Claude, or **pause the run**. If nobody answers within 5 minutes, the run continues with the free local models, so an unattended run never stalls or overspends.
 - **Privacy:** photos sent to Claude go to Anthropic's servers. Everything else stays on the PC. The Settings screen says this plainly.
-- **Claude's answers are scored too:** QA checks how often Claude was right, and its answers feed the learning like yours.
+- **Claude's answers are scored too:** the accuracy check measures how often Claude was right, and its answers feed the learning like yours.
 
 ### Not adopted
 - Treating default camera dates (e.g. 1 Jan 2000) as missing: camera dates are trusted as they are.
-- Dropping holiday QA: holiday QA stays.
+- Dropping holiday questions from the accuracy check: they stay.
 
 ## Open questions
 
@@ -212,3 +214,4 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 15. 2026-11-14 · v15: API key popup with Get an API key, Set up billing and Test key buttons.
 16. 2026-11-14 · v16: Scans folder setting removed (scans detected automatically); Google Photos import via Google Takeout.
 17. 2026-11-14 · v17: Spending-limit popup: continue with free local models, raise the limit, or pause.
+18. 2026-11-14 · v18: One Start review queue; QA renamed Accuracy check (folder `_Accuracy Check`); type FINISH to confirm.
