@@ -180,7 +180,8 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Default model: Claude Sonnet 5.5**, changeable in Settings.
 - **Used only on items the local models are unsure about:** categories and Junk, holidays, estimating the decade of old scans, rotation, trim, cut-outs, pet or not. Anything Claude is confident about is resolved; the rest still goes to `_Needs Review`.
 - **Not used for recognising who someone is.** Identifying people stays with the local face model and your answers.
-- **Photos are shrunk to about 512px** before sending. A **spending limit** in Settings stops Claude when it's reached, and the app shows the running cost.
+- **Photos are shrunk to about 512px** before sending. A **spending limit** in Settings caps what Claude can spend, and the app shows the running cost.
+- **When the limit is reached** the app pops up a notice with the amount spent and how many unsure photos are left, and three choices: **continue with the free local models** (the rest go to Needs Review), **raise the limit** and keep using Claude, or **pause the run**. If nobody answers within 5 minutes, the run continues with the free local models, so an unattended run never stalls or overspends.
 - **Privacy:** photos sent to Claude go to Anthropic's servers. Everything else stays on the PC. The Settings screen says this plainly.
 - **Claude's answers are scored too:** QA checks how often Claude was right, and its answers feed the learning like yours.
 
@@ -210,3 +211,4 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 14. 2026-11-14 · v14: .exe installer built to GitHub Releases, downloads its AI files on first launch; ONNX Runtime + DirectML instead of PyTorch; optional Claude Sonnet 5.5 second opinion for unsure items, with spending limit; Install.bat dropped.
 15. 2026-11-14 · v15: API key popup with Get an API key, Set up billing and Test key buttons.
 16. 2026-11-14 · v16: Scans folder setting removed (scans detected automatically); Google Photos import via Google Takeout.
+17. 2026-11-14 · v17: Spending-limit popup: continue with free local models, raise the limit, or pause.

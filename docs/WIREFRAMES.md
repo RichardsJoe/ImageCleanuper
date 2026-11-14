@@ -99,6 +99,10 @@ Tabs for Folders, Holidays & categories, Accuracy, Hotkeys and Claude. Turning C
 
 ![Settings and Claude](wireframes/14-settings-claude.svg)
 
+When the Claude spending limit is reached during a run, a popup offers to continue with the free local models, raise the limit, or pause. If nobody answers in 5 minutes, it continues with the free models.
+
+![Spending limit reached](wireframes/17-spending-limit.svg)
+
 ### 13. Restore
 Restore everything, one photo or folder, or find the untouched original of any photo.
 
@@ -120,3 +124,4 @@ What makes it easy to follow from start to finish:
 
 1. 2026-11-14 · v1: First wireframe set (13 screens) and screen flow.
 2. 2026-11-14 · v2: Scans-folder option removed (scans found automatically); Add Google Photos screen.
+3. 2026-11-14 · v3: Spending-limit popup.
