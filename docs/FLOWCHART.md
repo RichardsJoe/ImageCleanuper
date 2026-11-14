@@ -1,131 +1,173 @@
 # ImageCleanuper Pipeline
 
-How a photo travels from your folders to the sorted library. Nothing is analyzed or moved until a verified backup exists, and you approve the plan before any file is written.
+How photos travel from your folders to a sorted library. Nothing is analyzed or moved until a verified backup exists, you approve every sort, and the tool gets better each round as you answer its questions.
 
-**Legend:** dotted arrow = learned labels improving a check · thick green border = safety gate (the run stops if it fails) · blue border = you decide · dashed orange = not settled yet · red = stop
+The cycle: **First-time setup → Run → Review → Run again → … → Finish**
+
+**Legend:** thick green border = safety gate (the run stops if it fails) · blue border = you do this · red = stop · dotted arrow = uses / reads from
 
 ```mermaid
 flowchart TD
-  SRC["Your master folders (several)<br/>nested any number of levels deep"]
+  subgraph S1["1 · First-time setup"]
+    SET["Choose folders in the app<br/>master folders · scans folder · library · backup"]
+    SAFE{"Library and backup<br/>outside master folders?"}
+  end
 
-  subgraph P0["1 · Backup first"]
-    COL["Collect every image from all master folders<br/>and subfolders; record SHA-256 + original path"]
-    ZIP["Zip into one archive<br/>keeps original folder paths"]
-    VER{"Every file in the zip<br/>matches its hash?"}
+  subgraph S2["2 · Run"]
+    NEW["Find new or changed photos and videos<br/>all master folders + _Add New Photos"]
+    ZIP["Back up new files only<br/>zip parts in C:\MasterPhotoBackup"]
+    VER{"Every file matches<br/>its fingerprint?"}
     STOP["Stop and report<br/>nothing touched"]
-    STORE["Save archive + manifest<br/>to C:\MasterPhotoBackup"]
-  end
-
-  subgraph P1["2 · Analyze (originals read-only)"]
-    META["Read date taken<br/>EXIF → date in filename<br/>scanner dates ignored"]
+    OPEN{"File opens?"}
+    CNO["_Could Not Open"]
     SCAN{"Several photos<br/>on one scan?"}
-    SPLIT["Cut out each photo<br/>straighten, save as its own image"]
-    ROT["Fix rotation<br/>EXIF orientation + sideways check"]
-    TRIM["Trim excess<br/>white / black borders"]
-    HASH["Fingerprint<br/>exact + look-alike hash"]
-    FACE["Find faces<br/>face fingerprints"]
-    PET["Pet check<br/>dog / cat"]
-    NODATE{"Date found?"}
-    SIM["Borrow date from a<br/>highly similar photo"]
-    FOLD["Date clue in folder names<br/>e.g. Grandma 1985, Christmas 2015"]
-    UNK["Unknown Date"]
-    DB[("Catalog")]
+    SPLIT["Cut out each photo<br/>and straighten it"]
+    FIX["Fix rotation · trim borders<br/>only when very sure"]
+    DETECT["Find faces · pets · categories<br/>Scenic · Projects · Junk · your own"]
+    SAVE[("Catalog<br/>saved after every photo")]
+    ALL["Compare across all photos<br/>duplicates · similar photos"]
+    DATE["Date: EXIF → filename → similar photo at 95%<br/>→ folder-name clue → Unknown"]
+    FIRST{"First run?"}
+    LEARN["Learn from your answers<br/>locked photos win · best samples count most<br/>model saved every 25 labels"]
+    PLAN["Plan destinations<br/>Year/Holidays · People · Pets · Scenic · Projects · Videos · Other<br/>Old Family Photos/ uses the same layout"]
+    UNSURE["Unsure items → _Needs Review<br/>blind sample → _QA Check"]
+    REPORT["Visual dry-run report<br/>totals · thumbnails · changes · scorecard · needs attention"]
+    OK{"Approve?"}
+    SYNC["Update library as copies<br/>adds · updates · removes only its own files"]
+    CHK{"Every source file<br/>accounted for?"}
+    LBK["Back up learned data<br/>last 10 versions"]
   end
 
-  subgraph P2["3 · Learn & review"]
-    GRP["Group similar<br/>unknown faces"]
-    REV["Needs Review/<br/>unsure faces, pets, scan cut-outs"]
-    NAME["You label them<br/>drag into named folders"]
-    LIB[("Learned labels<br/>people library + pet / scan examples")]
-    MATCH["Match faces<br/>to people library"]
+  subgraph S3["3 · Review, whenever suits you"]
+    WHO["Who is this?<br/>20 people per round · name or Stranger"]
+    REV["Needs Review<br/>faces · pets · categories · cut-outs · rotation · trim"]
+    QA["QA Check<br/>blind samples · 50 to start, shrinks as ratings reach 95%"]
+    DUPS["Duplicates · Junk<br/>side by side · delete to Recycle Bin or keep"]
   end
 
-  subgraph P3["4 · Plan"]
-    DUP["Duplicates<br/>keep best copy, extras → Duplicates/"]
-    YEAR["Year<br/>from date taken"]
-    HOL["Holiday<br/>date vs. US calendar"]
-    SCANQ{"Old scanned photo?"}
-    OLD["Old Family Photos/<br/>same layout: Year/Holidays · Year/People · Year/Pets · Year/Other<br/>Unknown Year if undated"]
-    DEST["Destinations<br/>Year/Holidays · Year/People · Year/Pets · Year/Other"]
-    QA["QA Check/<br/>random sample of confident guesses,<br/>answers hidden"]
-    DROP["You drop each photo<br/>where it belongs"]
-    SCORE["Accuracy report<br/>per person, pets, holidays, cut-outs"]
-    DRY["Dry-run report<br/>+ accuracy"]
-    OK{"Plan looks right?"}
+  subgraph S4["4 · Finish, once, when you're happy"]
+    FIN["Confirm screen<br/>shows exactly what will move"]
+    MOVE["Move originals into the library<br/>every move logged first"]
+    CLEAN["Delete folders left<br/>completely empty"]
   end
 
-  subgraph P4["5 · Write output"]
-    OUT["Copy / hard link / move<br/>name clashes get a suffix"]
-    CHK{"Every source image<br/>accounted for?"}
-    LOG["Summary + log"]
-  end
+  RESTORE["Restore screen<br/>everything · one photo or folder · find an original"]
 
-  SRC --> COL --> ZIP --> VER
+  SET --> SAFE
+  SAFE -- "no: pick again" --> SET
+  SAFE -- "yes" --> NEW
+  NEW --> ZIP --> VER
   VER -- "no" --> STOP
-  VER -- "yes" --> STORE
-  STORE -- "unlocks analysis" --> META
-  META --> SCAN
-  SCAN -- "yes" --> SPLIT -- "each cut-out photo" --> ROT
-  SCAN -- "no" --> ROT
-  ROT --> TRIM --> HASH --> FACE --> PET --> NODATE
-  NODATE -- "yes" --> DB
-  NODATE -- "no" --> SIM
-  SIM -- "match found" --> DB
-  SIM -- "no match" --> FOLD
-  FOLD -- "clue found" --> DB
-  FOLD -- "no clue" --> UNK --> DB
-  DB -- "unnamed faces" --> GRP --> REV
-  DB -- "unsure pets / cut-outs" --> REV
-  REV --> NAME -- "next run learns from" --> LIB
-  LIB --> MATCH
-  LIB -. "improves" .-> PET
-  DB -- "all faces" --> MATCH
-  MATCH -- "unsure faces" --> REV
-  MATCH --> DUP --> SCANQ
-  SCANQ -- "yes: under Old Family Photos/" --> YEAR
-  SCANQ -- "no: main library" --> YEAR
-  YEAR --> HOL --> DEST --> QA --> DROP -- "next run scores" --> SCORE --> DRY --> OK
-  SCORE -- "mistakes become labels" --> LIB
-  DEST -. "scans" .-> OLD
-  OK -- "no: change settings" --> DUP
-  OK -- "yes" --> OUT --> CHK
+  VER -- "yes" --> OPEN
+  OPEN -- "no" --> CNO
+  OPEN -- "yes" --> SCAN
+  SCAN -- "yes" --> SPLIT -- "each cut-out" --> FIX
+  SCAN -- "no" --> FIX
+  FIX --> DETECT --> SAVE --> ALL --> DATE --> FIRST
+  FIRST -- "yes: name people before the first sort" --> WHO
+  WHO -- "then continue" --> LEARN
+  FIRST -- "no" --> LEARN
+  LEARN --> PLAN --> UNSURE --> REPORT --> OK
+  OK -- "not yet: fix things first" --> S3
+  OK -- "yes" --> SYNC --> CHK
   CHK -- "no" --> STOP
-  CHK -- "yes" --> LOG
+  CHK -- "yes" --> LBK --> S3
+  S3 -- "Run again: learns from your answers" --> NEW
+  S3 -- "happy with the results" --> FIN
+  FIN --> MOVE --> CLEAN
+  RESTORE -. "reads backups in" .-> ZIP
 
   classDef gate stroke:#2f7d5b,stroke-width:4px
   classDef human stroke:#3b6fb6,stroke-width:3px
-  classDef open stroke:#b7791f,stroke-width:3px,stroke-dasharray:6 4
   classDef stop stroke:#c0392b,stroke-width:3px
-  class VER,CHK gate
-  class NAME,OK,DROP human
+  class SAFE,VER,CHK gate
+  class SET,WHO,REV,QA,DUPS,OK,FIN human
   class STOP stop
 ```
 
+A **run** is one pass over your whole collection. The first run backs up and analyzes everything, so it's slow. Later runs only handle new photos and your answers, so they take minutes.
+
+## Library layout
+
+```
+<library>\
+  2024\
+    Holidays\Christmas\ · Thanksgiving\ · …
+    People\Mom\ · Dad\ · Calvin\ · …
+    Pets\ · Scenic\ · Projects\ · <your categories>\
+    Videos\
+    Other\
+  Unknown Date\…
+  Old Family Photos\
+    1985\  (same layout as above)
+    Unknown Year\…
+    Original Scans\
+  _Add New Photos\
+  _Needs Review\
+  _QA Check\
+  _Duplicates\
+  _Junk\
+  _Strangers\
+  _Could Not Open\
+```
+
+A photo goes into **every** folder it belongs to (Calvin on a mountain at Christmas → `Holidays\Christmas`, `People\Calvin`, `Scenic`). Special folders start with `_` so they sort together at the top, and each has a `READ ME.txt`.
+
 ## Decided
 
-- **Backup before anything.** All images are collected, zipped and verified against a hash list before any analysis or moving starts.
-- **Backup location:** `C:\MasterPhotoBackup`. Each run writes a new dated zip plus its hash manifest there; old backups are never overwritten. The tool never collects images from this folder or from the sorted output folder, so it doesn't back up its own backups.
-- **Several master folders.** You list each top folder in the settings; the tool searches all of them. Duplicates are found across all of them, not just within one.
-- **Your existing folders are ignored for sorting.** The tool searches every subfolder, however deeply nested, and sorts only by date, faces, pets and duplicates. Each photo's original path is kept in the catalog and in the zip, so any photo can be traced back to where it came from.
-- **Name clashes:** files from different folders with the same name (e.g. many `IMG_0001.jpg`) get a suffix like `IMG_0001_2.jpg` in the sorted output.
-- **Multi-photo scans are split.** When one scan holds several photos, each photo is cut out, straightened and saved as its own image, then goes through the rest of the pipeline like any other photo. The original scan stays in the backup zip.
-- **Border trim:** excess white or black background around a photo is cropped off.
-- **Scanner dates are ignored.** A scan's date is the day it was scanned, not when the photo was taken, so scans skip straight to the similar-photo and folder-name checks.
-- **Hard links:** rotated, cropped or cut-out photos are saved as normal copies; untouched photos can be hard links.
-- **Originals are never edited.** Rotation and crop fixes are written to the sorted copies only. The zip keeps the untouched originals.
-- **Layout:** `Year/Holidays/<holiday>`, `Year/People/<name>`, `Year/Pets`, `Year/Other`, plus `Duplicates/`. A photo goes into every folder it belongs to.
-- **Output mode is a setting:** copy, hard link (one copy on disk, same drive only) or move.
-- **People:** local face recognition. Faces are grouped first, then you name the groups.
-- **`Needs Review/` folder for anything the tool is unsure about:** unknown or uncertain faces (grouped, so one folder per probable person), possible pets, and scan cut-outs that might be cut wrong. You label them in File Explorer by dragging items into folders named for the answer (e.g. `Calvin`, `Not a pet`, `Cut wrong`). The next run learns from those labels: faces are added to the people library, and pet and scan examples train the checks to make fewer mistakes. Labeled items then get sorted normally.
-- **QA sampling checks the models.** Each run copies a random sample of the tool's *confident* guesses into `QA Check/`, with random file names so the guess isn't given away. Each sample asks one question ("Who is this face?", "Pet or not?", "Which holiday?", "Cut out correctly?") and has answer folders to drop it into. The next run compares your answers with the hidden guesses and reports accuracy per person and per check (e.g. `Calvin 19/20`, `Dad mistaken for Calvin 2×`). Wrong guesses become labels, and a check that scores poorly gets stricter, so more of its guesses go to `Needs Review/` instead. The accuracy shows in the dry-run report before you approve. Sample size is a setting (default 20 per category).
-- **Unsure doesn't block sorting.** Whatever the tool *is* sure about still gets sorted (e.g. a photo is filed under Mom even if a second face in it is unsure); only the unsure part waits in `Needs Review/`.
-- **Holidays:** US calendar (Thanksgiving, July 4th, etc.), with adjustable windows and your own custom events.
-- **Missing dates:** date taken (EXIF), then a date in the filename, then the date of a highly similar photo, then a clue in the folder names (e.g. `Grandma 1985`, `Christmas 2015`, nearest folder first), otherwise `Unknown Date`. The file's modified date is not used.
-- **Folder-name clues** can also give a holiday: a photo with no date inside `Christmas 2015` is filed under Christmas 2015. Folder names are used only as clues for undated photos, never to decide where a dated photo goes.
-- **Old scanned photos go to `Old Family Photos/`**, separate from the main library but with the same layout inside: `Old Family Photos/1985/Holidays/Christmas`, `…/People/Grandma`, `…/Pets`, `…/Other`, and `Old Family Photos/Unknown Year/…` for undated ones. A photo counts as an old scan if it was cut out of a multi-photo scan, its file says it came from a scanner, or it sits in a master folder you mark as scans in the settings.
-- **Runs locally** on Windows 11 with the RTX 2070 Super. Free; no photos leave the PC.
-- **Python**, in this repo.
-- **No code yet.** Coding starts only when you say so.
+### Safety
+- **Backup before anything.** Every photo and video is fingerprinted (SHA-256) and zipped to `C:\MasterPhotoBackup` before analysis. The zip is written in parts and verified against the fingerprints; if anything fails, the run stops with nothing touched.
+- **Each file is backed up once.** Later runs back up only new or changed files. Old backups are never overwritten.
+- **Learned data is backed up** (names, labels, ratings, models) to `C:\MasterPhotoBackup\Learned Data\` after every run, keeping the last 10 versions.
+- **Originals are never edited.** Rotation, trim and cut-outs are saved as new files. Until Finish, the library holds copies only (no hard links).
+- **Crash recovery.** Results are saved after every photo, the model every 25 labels, and "last photo processed" is tracked. After a crash the app offers to continue where it stopped. Every move during Finish is logged first, so a crash mid-Finish can be completed or undone. The PC is kept awake during runs.
+- **Restore screen:** restore everything, one photo or folder, or find the untouched original of any library photo. Restores are checked against the backup's fingerprints and never overwrite without asking.
+- **Hand edits are detected.** If files in special folders are moved or deleted outside the app, the next run says so instead of getting confused.
+
+### Finding photos
+- **Several master folders** plus a scans folder, all set in the app and stored in `settings.ini` next to the app. Every subfolder is searched, however deeply nested. Your existing folder structure is ignored for sorting, but each file's original path is kept.
+- **The library location is yours to choose**, also stored in `settings.ini`. The tool refuses a library or backup location inside a master folder.
+- **Long Windows paths** are handled inside the tool (the Windows setting is left alone). Any file it still can't reach is listed in the report.
+- **New photos later:** drop them into `_Add New Photos` and click Run.
+- **`_Could Not Open`** holds corrupt or unsupported files, with a list explaining why.
+
+### Analyzing
+- **Multi-photo scans are split.** Each photo is cut out, straightened and treated as its own image. The full scan is kept in `Old Family Photos\Original Scans`.
+- **Rotation and border trim** (excess white or black background) only act when very sure. Uncertain cases go to Needs Review with before and after side by side: Looks good / Undo / Rotate again.
+- **Old scans** (cut out of a multi-photo scan, made by a scanner, or in the scans folder) go to `Old Family Photos\`, with the same layout as the main library.
+- **Dates:** date taken (EXIF), then a date in the filename, then the date of a similar photo, then a folder-name clue (e.g. `Grandma 1985`), otherwise Unknown. The file's modified date is never used. Scanner dates are ignored.
+- **Borrowed dates** are used only when the AI is at least 95% sure the photo is from the same setting. That cutoff is tuned through "Same event?" QA pairs. Scans only borrow from other scans. Borrowed dates are marked as guesses in the report.
+- **Folder-name clues** can also give a holiday (`Christmas 2015`). They're used only for undated photos.
+- **Holidays:** US calendar with adjustable windows and your own custom events.
+- **Videos** are sorted into `Year\Videos` by date (no face or pet detection).
+- **Duplicates:** exact copies and resized or re-saved copies. The best copy (highest resolution) is sorted and the extras go to `_Duplicates`. Burst shots and edited versions are kept.
+- **Categories:** People, Pets, Scenic, Projects, Other, plus a top-level `_Junk` (screenshots, memes, blurry or accidental shots). You can add your own categories in `settings.ini`, each with a description that the AI uses at first; your corrections teach it after that.
+
+### People
+- **"Who is this?" cards** show sample faces of one person at a time, 20 people per round, most frequent first. Type a name or press Stranger. The tool then finds that person in all photos, including group photos.
+- **Faces are shown as close-ups** and circled in group photos, so it's always clear who's meant.
+- **Strangers** go to `_Strangers`. Rename one later and they become a known person. Photos whose only faces are strangers are filed under `Other`.
+- **Names** aren't case-sensitive and are stored in proper case (`Joseph Richards`, with `McDonald` and `O'Brien` handled). The name box suggests existing names, asks "Did you mean…?" for near-misses, and people can be renamed or merged.
+
+### Learning and accuracy
+- **`_Needs Review`** holds anything the tool is unsure about. Whatever it *is* sure about still gets sorted; only the unsure part waits.
+- **QA Check** gives blind samples of confident guesses, with random file names and one question each: faces, pets, categories, holidays, cut-outs, rotation, trim, and "Same event?" pairs. Wrong guesses become labels.
+- **A rating for every person and category**, tracked round by round on a scorecard (e.g. `Calvin 97% ↑`, `Scenic 88% ↓`). The target is 95%. QA starts at 50 items and shrinks as ratings reach the target, while weak or dropping ratings get more samples.
+- **Locked photos:** anything you confirm is locked automatically (or press L). Later runs never move or re-label a locked photo; disagreements count against the model's rating.
+- **Best samples (★ B):** mark the clearest examples of a person or category. Later passes weight them most and use them as the reference for matching. The tool also suggests best samples for you to confirm.
+
+### Using the app
+- **Install:** double-click `Install.bat`. It sets up its own Python, detects the GPU (falling back to CPU if needed) and downloads the models. Then use the `Start ImageCleanuper` shortcut. `Update.bat` pulls new versions without losing settings or learned data. A single `.exe` installer comes later.
+- **App window** (CustomTkinter): it always shows the next step, plus Setup / Run / Review / Finish buttons, waiting-item counts, the scorecard, and a progress bar with time remaining. Settings are a form with folder pickers.
+- **Visual dry-run report:** totals, a folder tree with thumbnails, what changed since last run, the scorecard, and a plain-English "Needs attention" list with buttons. Misfiled photos can be corrected right in the report. Approve and sort / Not yet.
+- **Duplicate and junk screens** compare side by side with details. Delete sends files to the Recycle Bin; Keep both and Swap are also available, plus "Delete all exact duplicates".
+- **Hotkeys for every action:** Enter = save, → / Space = next, ← = back, Ctrl+Z = undo, 1–9 = pick an answer, S = Stranger, N = name box, D / K / W = duplicate actions, R / U = rotation actions, L = lock, B = best sample, Esc = close, F1 = list of hotkeys. Keys are shown on buttons and can be changed in `settings.ini`.
+- **Finish** happens once, when you're happy. It moves the originals into the library (fixed photos stay as their fixed versions; originals remain in the backup), then deletes folders left completely empty. Folders with anything else in them are left alone.
+- **Runs locally** on Windows 11 with the RTX 2070 Super. It's free, and no photos leave the PC.
+
+### Not adopted
+- Treating default camera dates (e.g. 1 Jan 2000) as missing: camera dates are trusted as they are.
+- Dropping holiday QA: holiday QA stays.
 
 ## Open questions
 
@@ -139,9 +181,10 @@ flowchart TD
 4. 2026-11-14 · v4: US holidays; missing dates borrowed from a highly similar photo, else Unknown Date.
 5. 2026-11-14 · v5: Flowchart moved to this Markdown file so it displays directly on GitHub.
 6. 2026-11-14 · v6: Search all nested subfolders; existing folder structure ignored for sorting; original paths kept; name clashes get a suffix.
-7. 2026-11-14 · v7: Several master folders; split multi-photo scans into separate images; trim white/black borders; scanner dates ignored; edited photos saved as copies.
+7. 2026-11-14 · v7: Several master folders; split multi-photo scans; trim white/black borders; scanner dates ignored.
 8. 2026-11-14 · v8: Backups go to C:\MasterPhotoBackup as dated zips; backup and output folders excluded from collection.
-9. 2026-11-14 · v9: Old scans go to Old Family Photos/; folder names used as date and holiday clues for undated photos.
-10. 2026-11-14 · v10: Needs Review/ folder for unsure faces, pets and scan cut-outs; your labels there retrain the models on the next run.
-11. 2026-11-14 · v11: Old Family Photos/ uses the same Year / Holidays / People / Pets / Other layout.
-12. 2026-11-14 · v12: QA sampling: blind samples in QA Check/, scored on the next run; accuracy in the dry-run report; mistakes retrain the models.
+9. 2026-11-14 · v9: Old scans go to Old Family Photos/; folder names used as date and holiday clues.
+10. 2026-11-14 · v10: Needs Review/ folder; your labels retrain the models on the next run.
+11. 2026-11-14 · v11: Old Family Photos/ uses the same layout as the main library.
+12. 2026-11-14 · v12: Blind QA sampling with accuracy report.
+13. 2026-11-14 · v13: Full design review applied: stages Setup → Run → Review → Run again → Finish; back up once; Finish step; library kept in sync; copies only (no hard links); 95% date borrowing; videos; Could Not Open; long paths; settings.ini; learned-data backup; Who is this? cards and Strangers; proper-case names; cautious rotation and trim; per-category ratings and shrinking QA; categories and Junk; duplicate screen; hotkeys; locked photos and best samples; app window; visual report; crash recovery; Restore; READ MEs and _ folders; Install.bat.
