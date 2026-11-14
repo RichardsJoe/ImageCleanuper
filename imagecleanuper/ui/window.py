@@ -27,6 +27,10 @@ AMBER = "#b7791f"
 MUTED = ("#5d6a73", "#9aa5ad")
 
 
+def plural(n: int, word: str) -> str:
+    return f"{n:,} {word}" + ("" if n == 1 else "s")
+
+
 class App(ctk.CTk):
     def __init__(self, paths: AppPaths):
         super().__init__()
@@ -158,42 +162,127 @@ class App(ctk.CTk):
         self._footer(primary=("Next", nxt))
 
     # ---- setup step 2: library and backup -----------------------------------
-    def show_setup_locations(self):
-        b = self._screen("Where should things go?")
-        entries = {}
+    def _location_fields(self, parent, s: settings_mod.Settings):
+        """Library + backup boxes. Problems appear under the box they're about, in orange,
+        with a one-click fix when there is an obvious one. Returns check() -> bool."""
+        widgets = {}
         for key, label, hint in (
-                ("library", "Sorted library", "Your finished, sorted photos. Can't be inside a photo folder."),
+                ("library", "Sorted library", "Your finished, sorted photos. Put it next to your photo folders, not inside."),
                 ("backup", "Backup folder", "A verified zip of every original is saved here before anything else.")):
-            ctk.CTkLabel(b, text=label, font=ctk.CTkFont(size=15, weight="bold"), anchor="w").pack(fill="x", pady=(12, 0))
-            ctk.CTkLabel(b, text=hint, text_color=MUTED, anchor="w").pack(fill="x")
-            row = ctk.CTkFrame(b, fg_color="transparent")
+            ctk.CTkLabel(parent, text=label, font=ctk.CTkFont(size=15, weight="bold"), anchor="w").pack(fill="x", pady=(12, 0))
+            ctk.CTkLabel(parent, text=hint, text_color=MUTED, anchor="w").pack(fill="x")
+            row = ctk.CTkFrame(parent, fg_color="transparent")
             row.pack(fill="x", pady=4)
             e = ctk.CTkEntry(row)
-            e.insert(0, getattr(self.settings, key) or "")
+            e.insert(0, getattr(s, key) or "")
             e.pack(side="left", fill="x", expand=True)
+            normal_border = e.cget("border_color")
 
             def browse(e=e, label=label):
                 d = filedialog.askdirectory(title=f"Choose the {label.lower()}")
                 if d:
                     e.delete(0, "end")
                     e.insert(0, os.path.normpath(d))
+                    check()
             ctk.CTkButton(row, text="Browse…", width=110, command=browse).pack(side="left", padx=(8, 0))
-            entries[key] = e
-        status = ctk.CTkLabel(b, text="", anchor="w", justify="left", wraplength=860)
-        status.pack(fill="x", pady=12)
+            msg_row = ctk.CTkFrame(parent, fg_color="transparent")
+            msg_row.pack(fill="x")
+            widgets[key] = (e, msg_row, normal_border)
+
+        def check() -> bool:
+            s.library = widgets["library"][0].get().strip()
+            s.backup = widgets["backup"][0].get().strip()
+            problems = [p for p in settings_mod.check(s) if p.blocking]
+            ok = True
+            for key, (e, msg_row, normal_border) in widgets.items():
+                for w in msg_row.winfo_children():
+                    w.destroy()
+                mine = [p for p in problems if p.field == key]
+                if not getattr(s, key):
+                    mine.insert(0, settings_mod.Problem(key, "Choose a folder."))
+                e.configure(border_color=AMBER if mine else normal_border)
+                for p in mine[:2]:
+                    ok = False
+                    ctk.CTkLabel(msg_row, text=p.message, text_color=AMBER, anchor="w", justify="left",
+                                 wraplength=860).pack(fill="x")
+                    if p.suggestion:
+                        def use(e=e, v=p.suggestion):
+                            e.delete(0, "end")
+                            e.insert(0, v)
+                            check()
+                        ctk.CTkButton(msg_row, text=f"Use {p.suggestion} instead", anchor="w",
+                                      fg_color="transparent", border_width=1, border_color=AMBER,
+                                      text_color=("gray15", "gray90"), command=use).pack(anchor="w", pady=(4, 0))
+            return ok
+
+        for e, _, _ in widgets.values():
+            e.bind("<FocusOut>", lambda ev: check())
+        return check
+
+    def show_setup_locations(self):
+        b = self._screen("Where should things go?")
+        check = self._location_fields(b, self.settings)
 
         def save_and_next():
-            self.settings.library = entries["library"].get().strip()
-            self.settings.backup = entries["backup"].get().strip()
-            probs = settings_mod.blocking_problems(self.settings)
-            if not self.settings.library or not self.settings.backup:
-                probs.insert(0, "Choose both folders.")
-            if probs:
-                status.configure(text="\n".join(probs), text_color=AMBER)
+            if not check():
                 return
             settings_mod.save(self.settings, self.paths.settings)
             self.show_setup_ready()
         self._footer(back=("Back", self.show_setup_folders), primary=("Next", save_and_next))
+
+    # ---- settings (from Home) --------------------------------------------------
+    def show_settings(self):
+        """Everything on one screen. Works on a copy: Cancel throws changes away."""
+        import copy
+        s = copy.deepcopy(self.settings)
+        b = self._screen("Folders & settings")
+        ctk.CTkLabel(b, text="Photo folders", font=ctk.CTkFont(size=15, weight="bold"), anchor="w").pack(fill="x")
+        ctk.CTkLabel(b, text="Every top folder with photos in it. Subfolders are searched automatically.",
+                     text_color=MUTED, anchor="w").pack(fill="x")
+        lst = ctk.CTkFrame(b)
+        lst.pack(fill="x", pady=4)
+        masters_msg = ctk.CTkFrame(b, fg_color="transparent")
+        masters_msg.pack(fill="x")
+
+        def redraw():
+            for w in lst.winfo_children():
+                w.destroy()
+            for m in s.masters:
+                row = ctk.CTkFrame(lst, fg_color="transparent")
+                row.pack(fill="x", padx=6, pady=2)
+                ctk.CTkLabel(row, text="📁  " + m, anchor="w").pack(side="left", padx=6)
+                ctk.CTkButton(row, text="Remove", width=80, fg_color="transparent", border_width=1,
+                              text_color=("gray20", "gray85"),
+                              command=lambda m=m: (s.masters.remove(m), redraw())).pack(side="right")
+            row = ctk.CTkFrame(lst, fg_color="transparent")
+            row.pack(fill="x", padx=6, pady=6)
+
+            def add():
+                d = filedialog.askdirectory(title="Choose a folder with photos")
+                if d and os.path.normpath(d) not in s.masters:
+                    s.masters.append(os.path.normpath(d))
+                    redraw()
+            ctk.CTkButton(row, text="+ Add a folder", width=160, command=add).pack(side="left")
+
+        redraw()
+        check_locations = self._location_fields(b, s)
+
+        def save():
+            ok = check_locations()
+            for w in masters_msg.winfo_children():
+                w.destroy()
+            mprobs = [p for p in settings_mod.check(s) if p.field == "masters" and p.blocking]
+            if not s.masters:
+                mprobs.insert(0, settings_mod.Problem("masters", "Add at least one photo folder."))
+            for p in mprobs[:3]:
+                ctk.CTkLabel(masters_msg, text=p.message, text_color=AMBER, anchor="w", justify="left",
+                             wraplength=860).pack(fill="x")
+            if not ok or mprobs:
+                return
+            settings_mod.save(s, self.paths.settings)
+            self.settings, self.state_info.problems = settings_mod.load(self.paths.settings)
+            self.show_home()
+        self._footer(back=("Cancel", self.show_home), primary=("Save", save))
 
     # ---- setup step 3: ready ---------------------------------------------------
     def show_setup_ready(self):
@@ -235,13 +324,13 @@ class App(ctk.CTk):
         tiles = ctk.CTkFrame(b, fg_color="transparent")
         tiles.pack(fill="x")
         for label, cmd in (("Run (R)", self.start_run), ("Restore", self.show_restore),
-                           ("Folders & settings", self.show_setup_folders)):
+                           ("Folders & settings", self.show_settings)):
             ctk.CTkButton(tiles, text=label, command=cmd, height=56, width=200,
                           fg_color="transparent", border_width=1,
                           text_color=("gray15", "gray90")).pack(side="left", padx=(0, 12))
         self.bind("<Key-r>", self._not_typing(self.start_run))
-        stats = (f"{info['photos']:,} photos and {info['videos']:,} videos found · "
-                 f"{info['backed_up']:,} backed up in {info['parts']} verified zip parts")
+        stats = (f"{plural(info['photos'], 'photo')} and {plural(info['videos'], 'video')} found · "
+                 f"{info['backed_up']:,} backed up in {plural(info['parts'], 'verified zip part')}")
         ctk.CTkLabel(b, text=stats, anchor="w").pack(fill="x", pady=(24, 4))
         if last:
             ctk.CTkLabel(b, text=f"Last run: #{last['id']} · {last['state']}" +

@@ -129,43 +129,78 @@ def load(path: Path) -> tuple[Settings, list[str]]:
     return s, problems
 
 
-def validate(s: Settings) -> list[str]:
-    """Folder rules. Returns plain-English problems; an empty list means OK."""
-    p: list[str] = []
-    for label, value in (("Sorted library", s.library), ("Backup folder", s.backup)):
+@dataclass
+class Problem:
+    """One folder problem, tied to the box it's about so the screen can highlight it."""
+    field: str            # "library" | "backup" | "masters"
+    message: str
+    blocking: bool = True
+    suggestion: str = ""  # a value that would fix it, offered as a one-click button
+
+
+def _name(path: str) -> str:
+    return os.path.basename(path.rstrip("\\/")) or path
+
+
+def _suggest_beside(value: str, master: str, s: Settings) -> str:
+    """Same folder name, moved next to the photo folder instead of inside it."""
+    cand = os.path.join(os.path.dirname(master.rstrip("\\/")), _name(value))
+    if any(is_inside(cand, m) or is_inside(m, cand) for m in s.masters):
+        return ""
+    other = s.backup if value == s.library else s.library
+    if other and (is_inside(cand, other) or is_inside(other, cand)):
+        return ""
+    return cand
+
+
+def check(s: Settings) -> list[Problem]:
+    """Folder rules, each problem tied to the box it's about."""
+    p: list[Problem] = []
+    labels = {"library": "Sorted library", "backup": "Backup folder"}
+    for key in ("library", "backup"):
+        value = getattr(s, key)
         if value and not os.path.isabs(value):
-            p.append(f"{label} must be a full path like C:\\SortedPhotos.")
+            p.append(Problem(key, f"{labels[key]} needs a full path, like C:\\SortedPhotos. Use Browse to pick it."))
     if s.library and s.backup and (is_inside(s.library, s.backup) or is_inside(s.backup, s.library)):
-        p.append("The sorted library and the backup folder can't be inside each other.")
+        p.append(Problem("backup", "The sorted library and the backup folder can't be inside each other."))
     seen: list[str] = []
     for m in s.masters:
         if any(same_path(m, x) for x in seen):
-            p.append(f"{m} is listed twice.")
+            p.append(Problem("masters", f"{m} is listed twice."))
             continue
         seen.append(m)
         if not os.path.isabs(m):
-            p.append(f"{m} must be a full path.")
+            p.append(Problem("masters", f"{m} needs a full path."))
             continue
         if not os.path.isdir(m):
-            p.append(f"{m} can't be found right now (unplugged drive?). It will be skipped.")
-        for label, value in (("sorted library", s.library), ("backup folder", s.backup)):
-            if not value:
+            p.append(Problem("masters", f"{m} can't be found right now (unplugged drive?). It will be skipped.",
+                             blocking=False))
+        for key in ("library", "backup"):
+            value = getattr(s, key)
+            if not value or not os.path.isabs(value):
                 continue
             if is_inside(value, m):
-                p.append(f"The {label} ({value}) is inside a photo folder ({m}). "
-                         f"Choose a {label} somewhere else, or the app would sort its own files.")
+                p.append(Problem(key, f"{labels[key]} can't go inside your photo folder \"{_name(m)}\", "
+                                      f"or the app would back up and sort its own files. Put it next to it instead.",
+                                 suggestion=_suggest_beside(value, m, s)))
             elif is_inside(m, value):
-                p.append(f"The photo folder {m} is inside the {label}. Choose a different folder.")
+                p.append(Problem("masters", f"Your photo folder \"{_name(m)}\" is inside the "
+                                            f"{labels[key].lower()}. Choose a different {labels[key].lower()}."))
     for i, a in enumerate(s.masters):
         for b in s.masters[i + 1:]:
             if not same_path(a, b) and (is_inside(a, b) or is_inside(b, a)):
-                p.append(f"{a} and {b} overlap. Keep only the top folder.")
+                p.append(Problem("masters", f"\"{_name(a)}\" and \"{_name(b)}\" overlap. Keep only the top folder."))
     return p
+
+
+def validate(s: Settings) -> list[str]:
+    """Folder rules as plain-English messages; an empty list means OK."""
+    return [x.message for x in check(s)]
 
 
 def blocking_problems(s: Settings) -> list[str]:
     """Problems that must be fixed before a run (missing drives are only warnings)."""
-    return [x for x in validate(s) if "can't be found right now" not in x]
+    return [x.message for x in check(s) if x.blocking]
 
 
 def save(s: Settings, path: Path) -> None:

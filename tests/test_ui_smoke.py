@@ -15,7 +15,7 @@ def test_screens_open(env):
     try:
         app.settings = s
         for show in (app.show_setup_folders, app.show_setup_locations, app.show_setup_ready,
-                     app.show_home, app.show_restore, app.show_hotkeys):
+                     app.show_home, app.show_settings, app.show_restore, app.show_hotkeys):
             show()
             app.update()
     finally:

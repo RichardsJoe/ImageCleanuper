@@ -40,9 +40,13 @@ def test_T19_library_inside_master_refused(tmp_path):
     m = tmp_path / "Pictures"
     m.mkdir()
     s = settings_mod.Settings(library=str(m / "Sorted"), backup=str(tmp_path / "Bk"), masters=[str(m)])
-    assert any("inside a photo folder" in x for x in settings_mod.blocking_problems(s))
+    probs = settings_mod.check(s)
+    assert [p.field for p in probs if p.blocking] == ["library"]  # only the library box is flagged
+    assert probs[0].suggestion == str(tmp_path / "Sorted")        # one-click fix: next to it, not inside
+    s.library = probs[0].suggestion
+    assert not settings_mod.blocking_problems(s)
     s = settings_mod.Settings(library=str(tmp_path / "Lib"), backup=str(m / "Backup"), masters=[str(m)])
-    assert any("inside a photo folder" in x for x in settings_mod.blocking_problems(s))
+    assert [p.field for p in settings_mod.check(s)] == ["backup"]
 
 
 def test_missing_drive_is_warning_not_blocker(tmp_path):
