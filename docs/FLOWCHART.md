@@ -9,12 +9,13 @@ The cycle: **First-time setup → Run → Review → Run again → … → Finis
 ```mermaid
 flowchart TD
   subgraph S1["1 · First-time setup"]
-    SET["Choose folders in the app<br/>master folders · scans folder · library · backup"]
+    SET["Choose folders in the app<br/>master folders · library · backup"]
+    GOO["Optional: Google Photos<br/>Takeout zips → copied to backup → added as a source"]
     SAFE{"Library and backup<br/>outside master folders?"}
   end
 
   subgraph S2["2 · Run"]
-    NEW["Find new or changed photos and videos<br/>all master folders + _Add New Photos"]
+    NEW["Find new or changed photos and videos<br/>master folders · Google Photos · _Add New Photos"]
     ZIP["Back up new files only<br/>zip parts in C:\MasterPhotoBackup"]
     VER{"Every file matches<br/>its fingerprint?"}
     STOP["Stop and report<br/>nothing touched"]
@@ -26,7 +27,7 @@ flowchart TD
     DETECT["Find faces · pets · categories<br/>Scenic · Projects · Junk · your own"]
     SAVE[("Catalog<br/>saved after every photo")]
     ALL["Compare across all photos<br/>duplicates · similar photos"]
-    DATE["Date: EXIF → filename → similar photo at 95%<br/>→ folder-name clue → Unknown"]
+    DATE["Date: EXIF → Google Photos date → filename<br/>→ similar photo at 95% → folder-name clue → Unknown"]
     FIRST{"First run?"}
     LEARN["Learn from your answers<br/>locked photos win · best samples count most<br/>model saved every 25 labels"]
     PLAN["Plan destinations<br/>Year/Holidays · People · Pets · Scenic · Projects · Videos · Other<br/>Old Family Photos/ uses the same layout"]
@@ -55,6 +56,7 @@ flowchart TD
   RESTORE["Restore screen<br/>everything · one photo or folder · find an original"]
 
   SET --> SAFE
+  SET -. "optional, now or later" .-> GOO -.-> NEW
   SAFE -- "no: pick again" --> SET
   SAFE -- "yes" --> NEW
   NEW --> ZIP --> VER
@@ -85,7 +87,7 @@ flowchart TD
   class SAFE,VER,CHK gate
   class SET,WHO,REV,QA,DUPS,OK,FIN human
   class STOP stop
-  class CLAUDE optional
+  class CLAUDE,GOO optional
 ```
 
 A **run** is one pass over your whole collection. The first run backs up and analyzes everything, so it's slow. Later runs only handle new photos and your answers, so they take minutes.
@@ -128,17 +130,18 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Hand edits are detected.** If files in special folders are moved or deleted outside the app, the next run says so instead of getting confused.
 
 ### Finding photos
-- **Several master folders** plus a scans folder, all set in the app and stored in `settings.ini` next to the app. Every subfolder is searched, however deeply nested. Your existing folder structure is ignored for sorting, but each file's original path is kept.
+- **Several master folders,** set in the app and stored in `settings.ini` next to the app. Every subfolder is searched, however deeply nested. Your existing folder structure is ignored for sorting, but each file's original path is kept.
 - **The library location is yours to choose**, also stored in `settings.ini`. The tool refuses a library or backup location inside a master folder.
 - **Long Windows paths** are handled inside the tool (the Windows setting is left alone). Any file it still can't reach is listed in the report.
 - **New photos later:** drop them into `_Add New Photos` and click Run.
+- **Google Photos (optional):** Google no longer lets apps read a whole Google Photos library (API change, March 2025), so the app walks you through **Google Takeout**: a button opens Takeout with only Google Photos selected, Google emails you when the export is ready, and you choose the downloaded zips. The zips are copied into `C:\MasterPhotoBackup` and verified like everything else, then their photos become another source. Google's date for each photo (from Takeout's info files) is used, and album copies are caught as duplicates. It can be done during setup or later from Home, and repeated for newer photos.
 - **`_Could Not Open`** holds corrupt or unsupported files, with a list explaining why.
 
 ### Analyzing
 - **Multi-photo scans are split.** Each photo is cut out, straightened and treated as its own image. The full scan is kept in `Old Family Photos\Original Scans`.
 - **Rotation and border trim** (excess white or black background) only act when very sure. Uncertain cases go to Needs Review with before and after side by side: Looks good / Undo / Rotate again.
-- **Old scans** (cut out of a multi-photo scan, made by a scanner, or in the scans folder) go to `Old Family Photos\`, with the same layout as the main library.
-- **Dates:** date taken (EXIF), then a date in the filename, then the date of a similar photo, then a folder-name clue (e.g. `Grandma 1985`), otherwise Unknown. The file's modified date is never used. Scanner dates are ignored.
+- **Old scans are found automatically,** with no folder to point out: cut out of a multi-photo scan, made by a scanner (file info), or looking like a scanned print (paper borders, print texture, no camera info). They go to `Old Family Photos\`, with the same layout as the main library. Unsure cases go to Needs Review, and "Old scan?" is part of the accuracy check.
+- **Dates:** date taken (EXIF), then Google Photos' own date (for Google imports), then a date in the filename, then the date of a similar photo, then a folder-name clue (e.g. `Grandma 1985`), otherwise Unknown. The file's modified date is never used. Scanner dates are ignored.
 - **Borrowed dates** are used only when the AI is at least 95% sure the photo is from the same setting. That cutoff is tuned through "Same event?" QA pairs. Scans only borrow from other scans. Borrowed dates are marked as guesses in the report.
 - **Folder-name clues** can also give a holiday (`Christmas 2015`). They're used only for undated photos.
 - **Holidays:** US calendar with adjustable windows and your own custom events.
@@ -206,3 +209,4 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 13. 2026-11-14 · v13: Full design review applied: stages Setup → Run → Review → Run again → Finish; back up once; Finish step; library kept in sync; copies only (no hard links); 95% date borrowing; videos; Could Not Open; long paths; settings.ini; learned-data backup; Who is this? cards and Strangers; proper-case names; cautious rotation and trim; per-category ratings and shrinking QA; categories and Junk; duplicate screen; hotkeys; locked photos and best samples; app window; visual report; crash recovery; Restore; READ MEs and _ folders; Install.bat.
 14. 2026-11-14 · v14: .exe installer built to GitHub Releases, downloads its AI files on first launch; ONNX Runtime + DirectML instead of PyTorch; optional Claude Sonnet 5.5 second opinion for unsure items, with spending limit; Install.bat dropped.
 15. 2026-11-14 · v15: API key popup with Get an API key, Set up billing and Test key buttons.
+16. 2026-11-14 · v16: Scans folder setting removed (scans detected automatically); Google Photos import via Google Takeout.

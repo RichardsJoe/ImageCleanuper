@@ -19,6 +19,8 @@ flowchart LR
   H -- "Finish" --> F["Finish"]
   H -.-> S["Settings<br/>+ Connect Claude"]
   H -.-> X["Restore"]
+  B -. "optional" .-> G["Add Google Photos<br/>export · wait · choose zips"]
+  H -.-> G
   K["Crash or restart"] -.-> Q["Pick up where<br/>you left off?"] -.-> R
 ```
 
@@ -32,9 +34,14 @@ The installer is small; the AI files download once, with progress and automatic 
 ![First launch](wireframes/01-first-launch.svg)
 
 ### 2. Setup: where are your photos?
-Add top folders with a folder picker. No typing paths. Optionally mark a folder of old scans.
+Add top folders with a folder picker. No typing paths. Old scanned photos are found automatically. Optionally bring in Google Photos.
 
 ![Setup step 1](wireframes/02-setup-folders.svg)
+
+### 2b. Add Google Photos (optional, now or later from Home)
+Google only allows a full-library export through Google Takeout, so the app walks you through it: request the export, wait for Google's email, then choose the downloaded zips. The zips are copied into the backup folder and checked, and Google's own date for each photo is used.
+
+![Add Google Photos](wireframes/16-google-photos.svg)
 
 ### 3. Setup: where should things go?
 Library and backup locations, each checked on the spot (free space, not inside a photo folder).
@@ -112,3 +119,4 @@ What makes it easy to follow from start to finish:
 ## Change log
 
 1. 2026-11-14 · v1: First wireframe set (13 screens) and screen flow.
+2. 2026-11-14 · v2: Scans-folder option removed (scans found automatically); Add Google Photos screen.
