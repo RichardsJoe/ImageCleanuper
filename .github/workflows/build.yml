@@ -53,6 +53,17 @@ jobs:
           choco install innosetup -y --no-progress
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=${{ steps.ver.outputs.version }} installer\ImageCleanuper.iss
 
+      - name: Check the installer installs per-user (no admin folder)
+        run: |
+          $setup = Get-ChildItem dist\ImageCleanuper-Setup-*.exe | Select-Object -First 1
+          $p = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/LOG=install.log" -Wait -PassThru
+          Get-Content install.log | Select-String -Pattern "Dest|Directory|dir" | Select-Object -First 15
+          if ($p.ExitCode -ne 0) { throw "installer exited with $($p.ExitCode)" }
+          $exe = Join-Path $env:LOCALAPPDATA "Programs\ImageCleanuper\ImageCleanuper.exe"
+          if (-not (Test-Path $exe)) { throw "App was not installed to $exe" }
+          if (Test-Path "C:\Program Files (x86)\ImageCleanuper") { throw "App was installed to Program Files (x86)" }
+          Write-Host "Installed to $exe"
+
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:

@@ -11,9 +11,13 @@ AppId={{6C1C6F2E-3B1A-4C55-9C2B-1F7E3D2A9B10}
 AppName=ImageCleanuper
 AppVersion={#AppVersion}
 AppPublisher=ImageCleanuper
-DefaultDirName={localappdata}\Programs\ImageCleanuper
+; Per-user install: {userpf} is C:\Users\<you>\AppData\Local\Programs. No admin rights needed.
+DefaultDirName={userpf}\ImageCleanuper
 DefaultGroupName=ImageCleanuper
 PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=
+UsePreviousAppDir=no
+DisableDirPage=yes
 DisableProgramGroupPage=yes
 OutputDir=..\dist
 OutputBaseFilename=ImageCleanuper-Setup-{#AppVersion}
