@@ -6,10 +6,10 @@ How a photo travels from your folders to the sorted library. Nothing is analyzed
 
 ```mermaid
 flowchart TD
-  SRC["Your photo folders<br/>nested any number of levels deep"]
+  SRC["Your master folders (several)<br/>nested any number of levels deep"]
 
   subgraph P0["1 · Backup first"]
-    COL["Collect every image from all subfolders<br/>record SHA-256 + original path"]
+    COL["Collect every image from all master folders<br/>and subfolders; record SHA-256 + original path"]
     ZIP["Zip into one archive<br/>keeps original folder paths"]
     VER{"Every file in the zip<br/>matches its hash?"}
     STOP["Stop and report<br/>nothing touched"]
@@ -17,9 +17,11 @@ flowchart TD
   end
 
   subgraph P1["2 · Analyze (originals read-only)"]
-    META["Read date taken<br/>EXIF → date in filename"]
+    META["Read date taken<br/>EXIF → date in filename<br/>scanner dates ignored"]
+    SCAN{"Several photos<br/>on one scan?"}
+    SPLIT["Cut out each photo<br/>straighten, save as its own image"]
     ROT["Fix rotation<br/>EXIF orientation + sideways check"]
-    CROP["Auto-crop<br/>what kind? see open questions"]
+    TRIM["Trim excess<br/>white / black borders"]
     HASH["Fingerprint<br/>exact + look-alike hash"]
     FACE["Find faces<br/>face fingerprints"]
     PET["Pet check<br/>dog / cat"]
@@ -55,7 +57,10 @@ flowchart TD
   VER -- "no" --> STOP
   VER -- "yes" --> STORE
   STORE -- "unlocks analysis" --> META
-  META --> ROT --> CROP --> HASH --> FACE --> PET --> NODATE
+  META --> SCAN
+  SCAN -- "yes" --> SPLIT -- "each cut-out photo" --> ROT
+  SCAN -- "no" --> ROT
+  ROT --> TRIM --> HASH --> FACE --> PET --> NODATE
   NODATE -- "yes" --> DB
   NODATE -- "no" --> SIM
   SIM -- "match found" --> DB
@@ -76,15 +81,19 @@ flowchart TD
   classDef stop stroke:#c0392b,stroke-width:3px
   class VER,CHK gate
   class NAME,OK human
-  class CROP open
   class STOP stop
 ```
 
 ## Decided
 
 - **Backup before anything.** All images are collected, zipped and verified against a hash list before any analysis or moving starts.
+- **Several master folders.** You list each top folder in the settings; the tool searches all of them. Duplicates are found across all of them, not just within one.
 - **Your existing folders are ignored for sorting.** The tool searches every subfolder, however deeply nested, and sorts only by date, faces, pets and duplicates. Each photo's original path is kept in the catalog and in the zip, so any photo can be traced back to where it came from.
 - **Name clashes:** files from different folders with the same name (e.g. many `IMG_0001.jpg`) get a suffix like `IMG_0001_2.jpg` in the sorted output.
+- **Multi-photo scans are split.** When one scan holds several photos, each photo is cut out, straightened and saved as its own image, then goes through the rest of the pipeline like any other photo. The original scan stays in the backup zip.
+- **Border trim:** excess white or black background around a photo is cropped off.
+- **Scanner dates are ignored.** A scan's date is the day it was scanned, not when the photo was taken, so scans go straight to the similar-photo check and then `Unknown Date`.
+- **Hard links:** rotated, cropped or cut-out photos are saved as normal copies; untouched photos can be hard links.
 - **Originals are never edited.** Rotation and crop fixes are written to the sorted copies only. The zip keeps the untouched originals.
 - **Layout:** `Year/Holidays/<holiday>`, `Year/People/<name>`, `Year/Pets`, `Year/Other`, plus `Duplicates/`. A photo goes into every folder it belongs to.
 - **Output mode is a setting:** copy, hard link (one copy on disk, same drive only) or move.
@@ -97,11 +106,9 @@ flowchart TD
 
 ## Open questions
 
-- **Crop:** what should be cropped? White or black borders on scanned photos, black bars on screenshots, straightening tilted scans, or something else?
 - **Backup location:** where should the zip go? A different drive from the photos (e.g. an external drive) is safest.
-- **Sources:** one photos folder, or several (phone exports, downloads, old drives)?
+- **Dates for old scanned photos:** most will end up in `Unknown Date`. Is that OK, or would you rather they go in their own `Scanned/` folder, or get dated from folder names (next question)?
 - **Folder names as hints:** you said your folders can *mostly* be ignored. Should a folder name like `Christmas 2015` ever be used as a clue when a photo has no date, or should folder names be ignored completely?
-- **Hard links and fixed photos:** a rotated or cropped photo is a new file, so it can't be a hard link to the original. Fine to store those as copies?
 
 ## Change log
 
@@ -111,3 +118,4 @@ flowchart TD
 4. 2026-11-14 · v4: US holidays; missing dates borrowed from a highly similar photo, else Unknown Date.
 5. 2026-11-14 · v5: Flowchart moved to this Markdown file so it displays directly on GitHub.
 6. 2026-11-14 · v6: Search all nested subfolders; existing folder structure ignored for sorting; original paths kept; name clashes get a suffix.
+7. 2026-11-14 · v7: Several master folders; split multi-photo scans into separate images; trim white/black borders; scanner dates ignored; edited photos saved as copies.
