@@ -173,7 +173,7 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Runs locally** on Windows 11 with the RTX 2070 Super. It's free, and no photos leave the PC unless you turn on Claude.
 
 ### Claude (optional)
-- **Off by default.** Turn it on in Settings and enter an Anthropic API key. The key is stored in Windows Credential Manager, not in `settings.ini`.
+- **Off by default.** Turning it on opens a simple **API key popup**: a key box with Paste and Show/Hide, a **Get an API key** button that opens Anthropic's sign-up and key page in your browser, a **Set up billing** button, and **Test key**, which checks the key with one tiny request and shows ✓ or a plain-English error. **Save** stores the key in Windows Credential Manager (never in `settings.ini`); **Remove key** deletes it. Enter = Save, Esc = Cancel.
 - **Default model: Claude Sonnet 5.5**, changeable in Settings.
 - **Used only on items the local models are unsure about:** categories and Junk, holidays, estimating the decade of old scans, rotation, trim, cut-outs, pet or not. Anything Claude is confident about is resolved; the rest still goes to `_Needs Review`.
 - **Not used for recognising who someone is.** Identifying people stays with the local face model and your answers.
@@ -205,3 +205,4 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 12. 2026-11-14 · v12: Blind QA sampling with accuracy report.
 13. 2026-11-14 · v13: Full design review applied: stages Setup → Run → Review → Run again → Finish; back up once; Finish step; library kept in sync; copies only (no hard links); 95% date borrowing; videos; Could Not Open; long paths; settings.ini; learned-data backup; Who is this? cards and Strangers; proper-case names; cautious rotation and trim; per-category ratings and shrinking QA; categories and Junk; duplicate screen; hotkeys; locked photos and best samples; app window; visual report; crash recovery; Restore; READ MEs and _ folders; Install.bat.
 14. 2026-11-14 · v14: .exe installer built to GitHub Releases, downloads its AI files on first launch; ONNX Runtime + DirectML instead of PyTorch; optional Claude Sonnet 5.5 second opinion for unsure items, with spending limit; Install.bat dropped.
+15. 2026-11-14 · v15: API key popup with Get an API key, Set up billing and Test key buttons.
