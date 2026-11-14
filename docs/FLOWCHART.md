@@ -13,7 +13,7 @@ flowchart TD
     ZIP["Zip into one archive<br/>keeps original folder paths"]
     VER{"Every file in the zip<br/>matches its hash?"}
     STOP["Stop and report<br/>nothing touched"]
-    STORE["Save archive + manifest<br/>to backup location"]
+    STORE["Save archive + manifest<br/>to C:\\MasterPhotoBackup"]
   end
 
   subgraph P1["2 · Analyze (originals read-only)"]
@@ -87,6 +87,7 @@ flowchart TD
 ## Decided
 
 - **Backup before anything.** All images are collected, zipped and verified against a hash list before any analysis or moving starts.
+- **Backup location:** `C:\MasterPhotoBackup`. Each run writes a new dated zip plus its hash manifest there; old backups are never overwritten. The tool never collects images from this folder or from the sorted output folder, so it doesn't back up its own backups.
 - **Several master folders.** You list each top folder in the settings; the tool searches all of them. Duplicates are found across all of them, not just within one.
 - **Your existing folders are ignored for sorting.** The tool searches every subfolder, however deeply nested, and sorts only by date, faces, pets and duplicates. Each photo's original path is kept in the catalog and in the zip, so any photo can be traced back to where it came from.
 - **Name clashes:** files from different folders with the same name (e.g. many `IMG_0001.jpg`) get a suffix like `IMG_0001_2.jpg` in the sorted output.
@@ -106,7 +107,6 @@ flowchart TD
 
 ## Open questions
 
-- **Backup location:** where should the zip go? A different drive from the photos (e.g. an external drive) is safest.
 - **Dates for old scanned photos:** most will end up in `Unknown Date`. Is that OK, or would you rather they go in their own `Scanned/` folder, or get dated from folder names (next question)?
 - **Folder names as hints:** you said your folders can *mostly* be ignored. Should a folder name like `Christmas 2015` ever be used as a clue when a photo has no date, or should folder names be ignored completely?
 
@@ -119,3 +119,4 @@ flowchart TD
 5. 2026-11-14 · v5: Flowchart moved to this Markdown file so it displays directly on GitHub.
 6. 2026-11-14 · v6: Search all nested subfolders; existing folder structure ignored for sorting; original paths kept; name clashes get a suffix.
 7. 2026-11-14 · v7: Several master folders; split multi-photo scans into separate images; trim white/black borders; scanner dates ignored; edited photos saved as copies.
+8. 2026-11-14 · v8: Backups go to C:\MasterPhotoBackup as dated zips; backup and output folders excluded from collection.
