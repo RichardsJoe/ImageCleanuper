@@ -2,7 +2,7 @@
 
 How a photo travels from your folders to the sorted library. Nothing is analyzed or moved until a verified backup exists, and you approve the plan before any file is written.
 
-**Legend:** thick green border = safety gate (the run stops if it fails) · blue border = you decide · dashed orange = not settled yet · red = stop
+**Legend:** dotted arrow = learned labels improving a check · thick green border = safety gate (the run stops if it fails) · blue border = you decide · dashed orange = not settled yet · red = stop
 
 ```mermaid
 flowchart TD
@@ -32,10 +32,11 @@ flowchart TD
     DB[("Catalog")]
   end
 
-  subgraph P2["3 · Learn people"]
+  subgraph P2["3 · Learn & review"]
     GRP["Group similar<br/>unknown faces"]
-    NAME["Name each group<br/>Mom, Dad, Calvin…"]
-    LIB[("People library")]
+    REV["Needs Review/<br/>unsure faces, pets, scan cut-outs"]
+    NAME["You label them<br/>drag into named folders"]
+    LIB[("Learned labels<br/>people library + pet / scan examples")]
     MATCH["Match faces<br/>to people library"]
   end
 
@@ -70,10 +71,13 @@ flowchart TD
   SIM -- "no match" --> FOLD
   FOLD -- "clue found" --> DB
   FOLD -- "no clue" --> UNK --> DB
-  DB -- "unnamed faces" --> GRP --> NAME -- "saves" --> LIB
+  DB -- "unnamed faces" --> GRP --> REV
+  DB -- "unsure pets / cut-outs" --> REV
+  REV --> NAME -- "next run learns from" --> LIB
   LIB --> MATCH
+  LIB -. "improves" .-> PET
   DB -- "all faces" --> MATCH
-  MATCH -- "unsure faces held for next review" --> GRP
+  MATCH -- "unsure faces" --> REV
   MATCH --> DUP --> SCANQ
   SCANQ -- "yes" --> OLD --> DRY
   SCANQ -- "no" --> YEAR --> HOL --> DEST --> DRY --> OK
@@ -106,6 +110,8 @@ flowchart TD
 - **Layout:** `Year/Holidays/<holiday>`, `Year/People/<name>`, `Year/Pets`, `Year/Other`, plus `Duplicates/`. A photo goes into every folder it belongs to.
 - **Output mode is a setting:** copy, hard link (one copy on disk, same drive only) or move.
 - **People:** local face recognition. Faces are grouped first, then you name the groups.
+- **`Needs Review/` folder for anything the tool is unsure about:** unknown or uncertain faces (grouped, so one folder per probable person), possible pets, and scan cut-outs that might be cut wrong. You label them in File Explorer by dragging items into folders named for the answer (e.g. `Calvin`, `Not a pet`, `Cut wrong`). The next run learns from those labels: faces are added to the people library, and pet and scan examples train the checks to make fewer mistakes. Labeled items then get sorted normally.
+- **Unsure doesn't block sorting.** Whatever the tool *is* sure about still gets sorted (e.g. a photo is filed under Mom even if a second face in it is unsure); only the unsure part waits in `Needs Review/`.
 - **Holidays:** US calendar (Thanksgiving, July 4th, etc.), with adjustable windows and your own custom events.
 - **Missing dates:** date taken (EXIF), then a date in the filename, then the date of a highly similar photo, then a clue in the folder names (e.g. `Grandma 1985`, `Christmas 2015`, nearest folder first), otherwise `Unknown Date`. The file's modified date is not used.
 - **Folder-name clues** can also give a holiday: a photo with no date inside `Christmas 2015` is filed under Christmas 2015. Folder names are used only as clues for undated photos, never to decide where a dated photo goes.
@@ -129,3 +135,4 @@ flowchart TD
 7. 2026-11-14 · v7: Several master folders; split multi-photo scans into separate images; trim white/black borders; scanner dates ignored; edited photos saved as copies.
 8. 2026-11-14 · v8: Backups go to C:\MasterPhotoBackup as dated zips; backup and output folders excluded from collection.
 9. 2026-11-14 · v9: Old scans go to Old Family Photos/; folder names used as date and holiday clues for undated photos.
+10. 2026-11-14 · v10: Needs Review/ folder for unsure faces, pets and scan cut-outs; your labels there retrain the models on the next run.
