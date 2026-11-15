@@ -678,7 +678,7 @@ class App(ctk.CTk):
             if it.derived:
                 self._image_box(right, it.derived, size, "current version").pack()
             else:
-                self._image_box(right, it.original, size, "trimmed (if you choose Looks good)",
+                self._image_box(right, it.original, size, "trimmed (if you choose Accept change)",
                                 crop=("crop", it.trim_box) if it.trim_box else None).pack()
         else:
             self._image_box(left, it.original, size, "the whole scan").pack()
@@ -703,7 +703,7 @@ class App(ctk.CTk):
         ctk.CTkButton(self.footer_area, text="Rotate again  (R)", fg_color="transparent", border_width=1,
                       text_color=("gray15", "gray90"), command=lambda: act("rotate"), width=160
                       ).pack(side="left", padx=8)
-        ctk.CTkButton(self.footer_area, text="Looks good  (Enter)", fg_color=BLUE, height=38, width=190,
+        ctk.CTkButton(self.footer_area, text="Accept change  (Enter)", fg_color=BLUE, height=38, width=190,
                       command=lambda: act("looks_good")).pack(side="right")
         ctk.CTkButton(self.footer_area, text="Skip  →", fg_color="transparent", width=90,
                       text_color=("gray30", "gray80"), command=lambda: self.show_review(index + 1)
@@ -715,7 +715,7 @@ class App(ctk.CTk):
         self.bind("<Left>", lambda e: self.show_review(index - 1))
         self.bind("<Escape>", lambda e: self.show_home())
         self.bind("<Control-z>", lambda e: self._review_undo(index))
-        self._hotkey_line("Enter Looks good · R Rotate again · U Undo fix · → Skip · ← Back · "
+        self._hotkey_line(f"Enter Accept change · R Rotate again · U {undo_label} · → Skip · ← Back · "
                           "Ctrl+Z Undo last answer · Esc Home (progress saved)")
 
     def _review_undo(self, index):

@@ -410,3 +410,29 @@ def test_single_print_on_scan_is_cut_out(env):
     cuts = cat.q("SELECT width, height FROM assets WHERE kind='cutout'")
     assert len(cuts) == 1
     assert 400 < cuts[0]["width"] < 500 and 550 < cuts[0]["height"] < 640  # just the photo, not the page
+
+
+def _one_print_in_corner():
+    """Modelled on real scans: one small print pushed into a corner of a mostly empty page."""
+    bed = Image.new("RGB", (1454, 2000), (236, 235, 237))
+    bed.paste(scene(600, (520, 760)), (1454 - 520 - 40, 2000 - 760))   # touches the bottom edge
+    return bed
+
+
+def test_single_print_in_corner_is_a_scan_and_no_bad_trim():
+    bed = _one_print_in_corner()
+    assert scans.detect_scan(bed, imageio.ImageInfo()).is_scan
+    assert len(scans.find_photos_on_scan(bed)) == 1
+    assert fix.find_border(bed).box is None   # never "trim" a strip and keep most of the empty page
+
+
+def test_single_print_scan_cut_out_and_scan_name_date_ignored(env):
+    paths, s, m1, _ = env
+    save_jpeg(_one_print_in_corner(), m1 / "Scan_20170326 (149) (2020_01_12 14_54_16 UTC).jpg")
+    cat, _ = run(paths, s)
+    cuts = cat.q("SELECT a.width, a.height, d.date, d.source, x.status FROM assets a JOIN dates d ON d.asset_id=a.id "
+                 "JOIN fixes x ON x.asset_id=a.id WHERE a.kind='cutout'")
+    assert len(cuts) == 1
+    assert 480 < cuts[0]["width"] < 540 and 700 < cuts[0]["height"] < 780     # just the print
+    assert cuts[0]["date"] is None and cuts[0]["source"] == "unknown"          # not 2017 (the scan date)
+    assert cuts[0]["status"] != "review"                                       # no bogus trim question

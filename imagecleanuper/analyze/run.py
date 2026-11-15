@@ -23,8 +23,9 @@ TAG_ORIENTATION = 0x0112
 # 4 = lid found by edges + texture: light walls, Polaroid frames, tidy grids (0.2.5),
 # 5 = single prints cut out; blank cards ignored (0.2.6),
 # 6 = proposed trims kept for review (0.3.0),
-# 7 = upside-down / sideways prints turned upright using faces (0.3.1).
-ANALYSIS_VERSION = 7
+# 7 = upside-down / sideways prints turned upright using faces (0.3.1),
+# 8 = single prints in a corner are scans; no trims that leave empty page; Scan_ names (0.3.2).
+ANALYSIS_VERSION = 8
 
 
 def pending(cat: Catalog) -> list:
@@ -130,6 +131,11 @@ def analyze_file(cat: Catalog, f, derived_dir: str) -> int:
     try:
         upright, exif_rot = imageio.upright(img, info.orientation)
         scan = scans.detect_scan(upright, info)
+        named_scan = os.path.basename(f["rel_path"]).lower().startswith("scan")
+        if named_scan and not scan.is_scan and scans.find_photos_on_scan(upright):
+            scan = scans.ScanCheck(True, 0.9, "file name says it's a scan, and prints were found on it")
+        if scan.is_scan and named_scan:
+            name_date = None   # "Scan_20170326…" is the day it was scanned, not when the photo was taken
         boxes = scans.find_photos_on_scan(upright) if scan.is_scan else []
         # One print or several: each is cut out. (find_photos_on_scan returns nothing when a
         # single print fills the page, which then goes through the normal border trim.)

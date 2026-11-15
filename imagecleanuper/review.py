@@ -24,9 +24,9 @@ from .paths import long_path
 
 QUESTIONS = {
     "trim": ("Did this fix look right?", "The app found a plain border to trim but wasn't sure, so it left the photo "
-                                         "alone. Looks good trims it; Undo keeps the whole photo."),
+                                         "alone. Accept change trims it; Undo keeps the whole photo."),
     "rotation": ("Is this the right way up?", "The app thinks this photo may be sideways or upside down but "
-                                              "wasn't sure. Looks good turns it as shown; Leave as is keeps it."),
+                                              "wasn't sure. Accept change turns it as shown; Leave as is keeps it."),
     "cutout": ("Was this scan cut out correctly?", "The app wasn't sure about this cut-out (two prints merged, "
                                                    "or one print cut in two). Undo keeps the whole scan instead."),
 }

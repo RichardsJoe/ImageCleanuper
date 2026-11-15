@@ -116,13 +116,16 @@ def detect_scan(img: Image.Image, info: ImageInfo) -> ScanCheck:
     rgb, _ = _work_size(img, 900)
     mask = _lid_mask(rgb)
     bed_share = float(mask.mean())
-    if not 0.08 < bed_share < 0.85:
+    if not 0.08 < bed_share < 0.98:
         return ScanCheck(False, 0.9, "no scanner lid visible")
     # Several cleanly rectangular prints on a plain light background: prints on a scanner,
     # even when they're pushed right into the corners.
     prints = [b for b in find_photos_on_scan(img, min_area_share=0.03) if b.rect >= 0.9]
     if len(prints) >= 2:
         return ScanCheck(True, 0.95, f"{len(prints)} prints on a scanner lid")
+    # One print on a mostly empty page (often pushed into a corner).
+    if len(prints) == 1 and bed_share >= 0.25:
+        return ScanCheck(True, 0.9, "one print on a scanner lid")
     # One print with a plain margin all round: probably a single scanned print.
     border_bg = float(np.concatenate([mask[:5].ravel(), mask[-5:].ravel(),
                                       mask[:, :5].ravel(), mask[:, -5:].ravel()]).mean())

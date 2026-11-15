@@ -54,7 +54,12 @@ def find_border(img: Image.Image, min_border_share: float = 0.02) -> Trim:
     inner = a[top:h - bottom or h, left:w - right or w]
     if inner.size == 0 or inner.shape[0] < h * 0.3 or inner.shape[1] < w * 0.3:
         return Trim(None, 0.0)  # would remove most of the picture
-    contrast = abs(float(np.median(inner)) - float(np.mean(levels)))
+    # Safety: a real border leaves a photo behind. If much of what's left is still plain
+    # border-coloured background, this is a print on an empty page, not a border to trim.
+    level = float(np.mean(levels))
+    if float((np.abs(inner - level) <= 12).mean()) > 0.3:
+        return Trim(None, 0.0)
+    contrast = abs(float(np.median(inner)) - level)
     confidence = min(0.99, 0.5 + contrast / 100 + 0.1 * len(real))
     inv = 1 / scale
     box = (int(left * inv), int(top * inv), int(img.width - right * inv), int(img.height - bottom * inv))
