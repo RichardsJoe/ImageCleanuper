@@ -303,3 +303,26 @@ def test_migration_is_versioned(tmp_path):
     v = cat.schema_version
     cat.close()
     assert Catalog(tmp_path / "c.db").schema_version == v >= 1
+
+
+def test_removed_folder_no_longer_counts(env):
+    """Bug report: after switching photo folders, the old folder's ~550 photos still counted."""
+    from images import save_jpeg, scene
+    paths, s, m1, m2 = env
+    for i in range(5):
+        save_jpeg(scene(i), m1 / f"old_{i}.jpg", date="2019:01:01 10:00:00", make="Apple")
+    for i in range(2):
+        save_jpeg(scene(100 + i), m2 / f"new_{i}.jpg", date="2020:01:01 10:00:00", make="Apple")
+    s.masters = [str(m1)]
+    Runner(paths, s).run()
+    assert summary(paths)["photos"] == 5
+    s.masters = [str(m2)]           # user swaps to a different folder in Settings
+    Runner(paths, s).run()
+    info = summary(paths)
+    assert info["photos"] == 2 and info["analyzed"] == 2 and info["backed_up"] == 2
+    assert sum(info["date_sources"].values()) == 2
+    s.masters = [str(m1), str(m2)]  # adding the old folder back brings its photos back, no re-analysis
+    Runner(paths, s).run()
+    assert summary(paths)["photos"] == 7 and summary(paths)["analyzed"] == 7
+    cat = Catalog(paths.catalog)
+    assert cat.scalar("SELECT COUNT(*) FROM backup_parts") == 2   # nothing backed up twice

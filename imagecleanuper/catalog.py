@@ -144,6 +144,13 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX dup_members_asset ON dup_members(asset_id);
     """,
+    # 3: only folders currently in Settings count. Removing a folder keeps its history
+    # (for Restore) but takes its photos out of every count, comparison and plan.
+    """
+    CREATE VIEW active_files AS
+        SELECT f.* FROM files f JOIN sources s ON s.id = f.source_id
+        WHERE s.enabled = 1 AND f.missing = 0;
+    """,
 ]
 
 

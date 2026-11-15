@@ -313,8 +313,13 @@ class App(ctk.CTk):
                              wraplength=WRAP).pack(fill="x")
             if not ok or mprobs:
                 return
+            from ..paths import same_path
+            changed = (len(s.masters) != len(self.settings.masters)
+                       or not all(any(same_path(a, b) for b in self.settings.masters) for a in s.masters))
             settings_mod.save(s, self.paths.settings)
             self.settings, self.state_info.problems = settings_mod.load(self.paths.settings)
+            if changed:
+                self.folders_changed = True
             self.show_home()
         self._footer(back=("Cancel", self.show_home), primary=("Save", save))
 
@@ -343,7 +348,10 @@ class App(ctk.CTk):
         last = info["last_run"]
         nxt = ctk.CTkFrame(b, border_width=1, border_color=BLUE)
         nxt.pack(fill="x", pady=(8, 16))
-        if last is None:
+        if getattr(self, "folders_changed", False):
+            step, sub = "Scan your updated folders", ("Your photo folders changed. Run to pick up the new ones; "
+                                                      "removed folders no longer count (their backups are kept).")
+        elif last is None:
             step, sub = "Run your first scan", "Backs up every photo and video, then works out dates, duplicates and scans."
         elif last["state"] in ("crashed", "stopped"):
             step, sub = "Continue the last run", "It stopped early. Nothing was lost."
@@ -469,6 +477,7 @@ class App(ctk.CTk):
                             self.run_bar.set(done / total)
                 elif kind == "done":
                     self.runner = None
+                    self.folders_changed = False
                     self.unbind("<space>")
                     self.show_home()
                 elif kind == "error":

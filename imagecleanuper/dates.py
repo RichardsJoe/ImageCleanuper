@@ -164,8 +164,7 @@ def resolve_all(cat: Catalog, s: Settings) -> dict:
         """
         SELECT a.id, a.file_id, f.rel_path, f.kind AS file_kind, m.exif_date, m.google_date, m.filename_date,
                m.is_scan
-        FROM assets a JOIN files f ON f.id = a.file_id LEFT JOIN meta m ON m.asset_id = a.id
-        WHERE f.missing = 0
+        FROM assets a JOIN active_files f ON f.id = a.file_id LEFT JOIN meta m ON m.asset_id = a.id
         """)
     first: dict[int, Resolved] = {}
     for r in rows:

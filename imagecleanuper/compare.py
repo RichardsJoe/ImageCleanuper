@@ -41,9 +41,9 @@ def compare_all(cat: Catalog) -> dict:
         """
         SELECT a.id, a.kind, a.cutout_index, a.width, a.height, f.sha256, f.size, f.orig_path,
                h.phash, h.dhash, h.pixels, m.exif_date
-        FROM assets a JOIN files f ON f.id = a.file_id
+        FROM assets a JOIN active_files f ON f.id = a.file_id
         LEFT JOIN hashes h ON h.asset_id = a.id LEFT JOIN meta m ON m.asset_id = a.id
-        WHERE f.missing = 0 AND f.status = 'analyzed' AND f.kind = 'photo'
+        WHERE f.status = 'analyzed' AND f.kind = 'photo'
         ORDER BY a.id
         """)
     uf = _UnionFind()

@@ -46,7 +46,7 @@ def pending_files(cat: Catalog) -> list:
         """
         SELECT f.sha256, MIN(f.id) AS id, f.size, f.orig_path, f.rel_path, s.label
         FROM files f JOIN sources s ON s.id = f.source_id
-        WHERE f.missing = 0 AND f.busy = 0
+        WHERE f.missing = 0 AND f.busy = 0 AND s.enabled = 1
           AND f.sha256 NOT IN (SELECT e.sha256 FROM backup_entries e
                                JOIN backup_parts p ON p.id = e.part_id WHERE p.verified = 1)
         GROUP BY f.sha256

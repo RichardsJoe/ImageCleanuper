@@ -21,6 +21,7 @@ from .system import keep_awake
 
 Progress = Callable[[str, int, int], None]
 _log = log.get("app")
+ACTIVE_ASSETS = "SELECT a.id FROM assets a JOIN active_files f ON f.id = a.file_id"
 
 
 @dataclass
@@ -180,25 +181,29 @@ def summary(paths: AppPaths) -> dict:
     try:
         last = cat.last_run()
         return {
-            "files": cat.scalar("SELECT COUNT(*) FROM files WHERE missing=0"),
-            "photos": cat.scalar("SELECT COUNT(*) FROM files WHERE missing=0 AND kind='photo'"),
-            "videos": cat.scalar("SELECT COUNT(*) FROM files WHERE missing=0 AND kind='video'"),
+            "files": cat.scalar("SELECT COUNT(*) FROM active_files"),
+            "photos": cat.scalar("SELECT COUNT(*) FROM active_files WHERE kind='photo'"),
+            "videos": cat.scalar("SELECT COUNT(*) FROM active_files WHERE kind='video'"),
             "backed_up": cat.scalar(
                 "SELECT COUNT(DISTINCT e.sha256) FROM backup_entries e JOIN backup_parts p ON p.id=e.part_id "
-                "WHERE p.verified=1"),
+                "WHERE p.verified=1 AND e.sha256 IN (SELECT sha256 FROM active_files)"),
             "parts": cat.scalar("SELECT COUNT(*) FROM backup_parts WHERE verified=1"),
             "last_run": dict(last) if last else None,
-            "analyzed": cat.scalar("SELECT COUNT(*) FROM files WHERE missing=0 AND status='analyzed'"),
-            "could_not_open": cat.scalar("SELECT COUNT(*) FROM files WHERE missing=0 AND status='could_not_open'"),
-            "date_sources": {r[0]: r[1] for r in cat.q("SELECT source, COUNT(*) FROM dates GROUP BY source")},
-            "year_only": cat.scalar("SELECT COUNT(*) FROM dates WHERE year_only=1"),
+            "analyzed": cat.scalar("SELECT COUNT(*) FROM active_files WHERE status='analyzed'"),
+            "could_not_open": cat.scalar("SELECT COUNT(*) FROM active_files WHERE status='could_not_open'"),
+            "date_sources": {r[0]: r[1] for r in cat.q("SELECT source, COUNT(*) FROM dates WHERE asset_id IN (SELECT a.id FROM assets a "
+                "JOIN active_files f ON f.id=a.file_id) GROUP BY source")},
+            "year_only": cat.scalar("SELECT COUNT(*) FROM dates WHERE year_only=1 AND asset_id IN (SELECT a.id FROM assets a "
+                "JOIN active_files f ON f.id=a.file_id)"),
             "holidays": {r[0]: r[1] for r in cat.q(
-                "SELECT holiday, COUNT(*) FROM holidays GROUP BY holiday ORDER BY COUNT(*) DESC")},
+                f"SELECT holiday, COUNT(*) FROM holidays WHERE asset_id IN ({ACTIVE_ASSETS}) "
+                "GROUP BY holiday ORDER BY COUNT(*) DESC")},
             "scans": cat.scalar("SELECT COUNT(DISTINCT a.file_id) FROM meta m JOIN assets a ON a.id=m.asset_id "
-                                "WHERE m.is_scan=1"),
-            "cutouts": cat.scalar("SELECT COUNT(*) FROM assets WHERE kind='cutout'"),
-            "fixed": cat.scalar("SELECT COUNT(*) FROM fixes WHERE status='auto' OR exif_rotation<>0"),
-            "to_check": cat.scalar("SELECT COUNT(*) FROM fixes WHERE status='review'"),
+                                f"WHERE m.is_scan=1 AND a.id IN ({ACTIVE_ASSETS})"),
+            "cutouts": cat.scalar(f"SELECT COUNT(*) FROM assets WHERE kind='cutout' AND id IN ({ACTIVE_ASSETS})"),
+            "fixed": cat.scalar(f"SELECT COUNT(*) FROM fixes WHERE (status='auto' OR exif_rotation<>0) "
+                                f"AND asset_id IN ({ACTIVE_ASSETS})"),
+            "to_check": cat.scalar(f"SELECT COUNT(*) FROM fixes WHERE status='review' AND asset_id IN ({ACTIVE_ASSETS})"),
             "dup_groups": cat.scalar("SELECT COUNT(*) FROM dup_groups"),
             "dup_extras": cat.scalar("SELECT COUNT(*) FROM dup_members WHERE is_kept=0"),
         }

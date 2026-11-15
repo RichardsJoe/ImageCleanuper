@@ -24,8 +24,8 @@ def pending(cat: Catalog) -> list:
     """Files that are backed up (verified) but not analyzed yet."""
     return cat.q(
         """
-        SELECT f.* FROM files f
-        WHERE f.status = 'new' AND f.missing = 0 AND f.busy = 0
+        SELECT f.* FROM active_files f
+        WHERE f.status = 'new' AND f.busy = 0
           AND f.sha256 IN (SELECT e.sha256 FROM backup_entries e
                            JOIN backup_parts p ON p.id = e.part_id WHERE p.verified = 1)
         ORDER BY f.id
