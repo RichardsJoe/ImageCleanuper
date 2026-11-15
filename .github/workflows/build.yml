@@ -35,7 +35,8 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            v=$(python -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('imagecleanuper/__init__.py').read()).group(1))")
+            echo "version=${v}-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build app with PyInstaller

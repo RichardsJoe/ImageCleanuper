@@ -25,6 +25,7 @@ BLUE = "#2f6fdb"
 GREEN = "#2f8f5b"
 AMBER = "#b7791f"
 MUTED = ("#5d6a73", "#9aa5ad")
+WRAP = 680  # text width in the middle column
 
 
 def plural(n: int, word: str) -> str:
@@ -55,23 +56,56 @@ class App(ctk.CTk):
                 self.after(300, self.ask_resume)
 
     # ---- helpers ----------------------------------------------------------
-    def _screen(self, title: str, subtitle: str = "") -> ctk.CTkFrame:
+    NAV_ITEMS = (("home", "Home"), ("run", "Run  (R)"), ("restore", "Restore"), ("settings", "Settings"))
+
+    def _screen(self, title: str, subtitle: str = "", nav: str | None = "home",
+                nav_locked: bool = False) -> ctk.CTkFrame:
+        """Every screen: optional nav bar on the left, a title, a scrolling middle and a footer
+        pinned to the bottom (so buttons are always visible, however small the window)."""
         if self.body is not None:
             self.body.destroy()
-        for seq in ("<Return>", "<Escape>", "<Key-r>", "<Key-a>"):
+        for seq in ("<Return>", "<Escape>", "<Key-r>", "<Key-a>", "<space>"):
             self.unbind(seq)
         self.body = ctk.CTkFrame(self, fg_color="transparent")
-        self.body.pack(fill="both", expand=True, padx=40, pady=24)
-        ctk.CTkLabel(self.body, text=title, font=ctk.CTkFont(size=22, weight="bold"),
-                     anchor="w").pack(fill="x")
+        self.body.pack(fill="both", expand=True)
+        if nav is not None:
+            self._nav(self.body, nav, nav_locked)
+        main = ctk.CTkFrame(self.body, fg_color="transparent")
+        main.pack(side="left", fill="both", expand=True, padx=32, pady=(20, 16))
+        ctk.CTkLabel(main, text=title, font=ctk.CTkFont(size=22, weight="bold"), anchor="w").pack(fill="x")
         if subtitle:
-            ctk.CTkLabel(self.body, text=subtitle, text_color=MUTED, anchor="w", justify="left",
-                         wraplength=860).pack(fill="x", pady=(4, 12))
-        return self.body
+            ctk.CTkLabel(main, text=subtitle, text_color=MUTED, anchor="w", justify="left",
+                         wraplength=WRAP).pack(fill="x", pady=(4, 8))
+        self.footer_area = ctk.CTkFrame(main, fg_color="transparent", height=1)
+        self.footer_area.pack(side="bottom", fill="x", pady=(12, 0))   # packed before content: always visible
+        content = ctk.CTkScrollableFrame(main, fg_color="transparent")
+        content.pack(fill="both", expand=True)
+        return content
+
+    def _nav(self, parent, current: str, locked: bool) -> None:
+        bar = ctk.CTkFrame(parent, width=170, corner_radius=0)
+        bar.pack(side="left", fill="y")
+        bar.pack_propagate(False)
+        ctk.CTkLabel(bar, text="ImageCleanuper", font=ctk.CTkFont(size=15, weight="bold"),
+                     anchor="w").pack(fill="x", padx=16, pady=(20, 16))
+        targets = {"home": self.show_home, "run": self.start_run, "restore": self.show_restore,
+                   "settings": self.show_settings}
+        for key, label in self.NAV_ITEMS:
+            active = key == current
+            ctk.CTkButton(bar, text=label, anchor="w", height=36, corner_radius=6,
+                          fg_color=BLUE if active else "transparent",
+                          text_color="white" if active else ("gray15", "gray90"),
+                          hover_color=("gray80", "gray30") if not active else BLUE,
+                          state="disabled" if locked and not active else "normal",
+                          command=targets[key]).pack(fill="x", padx=10, pady=2)
+        if locked:
+            ctk.CTkLabel(bar, text="Pause the run to\nuse the other pages.", text_color=MUTED,
+                         justify="left", anchor="w").pack(fill="x", padx=16, pady=(12, 0))
+        ctk.CTkLabel(bar, text=f"Version {__version__}\nF1  Hotkeys", text_color=MUTED, justify="left",
+                     anchor="w").pack(side="bottom", fill="x", padx=16, pady=16)
 
     def _footer(self, back=None, primary=None):
-        bar = ctk.CTkFrame(self.body, fg_color="transparent")
-        bar.pack(side="bottom", fill="x", pady=(12, 0))
+        bar = self.footer_area
         if back:
             label, cmd = back
             ctk.CTkButton(bar, text=f"{label} (Esc)", fg_color="transparent", border_width=1,
@@ -118,7 +152,7 @@ class App(ctk.CTk):
 
     # ---- setup step 1: photo folders -----------------------------------------
     def show_setup_folders(self):
-        b = self._screen("Where are your photos?",
+        b = self._screen("Where are your photos?", nav=None, subtitle=
                          "Add every top folder that has photos in it. Subfolders are searched automatically, "
                          "however deep. Old scanned photos are found automatically.")
         lst = ctk.CTkScrollableFrame(b, height=220)
@@ -185,7 +219,7 @@ class App(ctk.CTk):
                     e.insert(0, os.path.normpath(d))
                     check()
             ctk.CTkButton(row, text="Browse…", width=110, command=browse).pack(side="left", padx=(8, 0))
-            msg_row = ctk.CTkFrame(parent, fg_color="transparent")
+            msg_row = ctk.CTkFrame(parent, fg_color="transparent", height=1)  # empty frames default to 200px tall
             msg_row.pack(fill="x")
             widgets[key] = (e, msg_row, normal_border)
 
@@ -204,7 +238,7 @@ class App(ctk.CTk):
                 for p in mine[:2]:
                     ok = False
                     ctk.CTkLabel(msg_row, text=p.message, text_color=AMBER, anchor="w", justify="left",
-                                 wraplength=860).pack(fill="x")
+                                 wraplength=WRAP).pack(fill="x")
                     if p.suggestion:
                         def use(e=e, v=p.suggestion):
                             e.delete(0, "end")
@@ -220,7 +254,7 @@ class App(ctk.CTk):
         return check
 
     def show_setup_locations(self):
-        b = self._screen("Where should things go?")
+        b = self._screen("Where should things go?", nav=None)
         check = self._location_fields(b, self.settings)
 
         def save_and_next():
@@ -235,13 +269,13 @@ class App(ctk.CTk):
         """Everything on one screen. Works on a copy: Cancel throws changes away."""
         import copy
         s = copy.deepcopy(self.settings)
-        b = self._screen("Folders & settings")
+        b = self._screen("Folders & settings", nav="settings")
         ctk.CTkLabel(b, text="Photo folders", font=ctk.CTkFont(size=15, weight="bold"), anchor="w").pack(fill="x")
         ctk.CTkLabel(b, text="Every top folder with photos in it. Subfolders are searched automatically.",
                      text_color=MUTED, anchor="w").pack(fill="x")
         lst = ctk.CTkFrame(b)
         lst.pack(fill="x", pady=4)
-        masters_msg = ctk.CTkFrame(b, fg_color="transparent")
+        masters_msg = ctk.CTkFrame(b, fg_color="transparent", height=1)
         masters_msg.pack(fill="x")
 
         def redraw():
@@ -276,7 +310,7 @@ class App(ctk.CTk):
                 mprobs.insert(0, settings_mod.Problem("masters", "Add at least one photo folder."))
             for p in mprobs[:3]:
                 ctk.CTkLabel(masters_msg, text=p.message, text_color=AMBER, anchor="w", justify="left",
-                             wraplength=860).pack(fill="x")
+                             wraplength=WRAP).pack(fill="x")
             if not ok or mprobs:
                 return
             settings_mod.save(s, self.paths.settings)
@@ -286,7 +320,7 @@ class App(ctk.CTk):
 
     # ---- setup step 3: ready ---------------------------------------------------
     def show_setup_ready(self):
-        b = self._screen("Ready for your first run",
+        b = self._screen("Ready for your first run", nav=None, subtitle=
                          "Your photos are not moved or changed in this version. Sorting comes in a later version.")
         for n, title, text in (("1", "Find", "Every photo and video in your folders, however deeply nested."),
                                ("2", "Back up", "Everything is zipped to your backup folder and checked file by file."),
@@ -304,7 +338,7 @@ class App(ctk.CTk):
 
     # ---- home ----------------------------------------------------------------
     def show_home(self):
-        b = self._screen("ImageCleanuper")
+        b = self._screen("Home", nav="home")
         info = summary(self.paths)
         last = info["last_run"]
         nxt = ctk.CTkFrame(b, border_width=1, border_color=BLUE)
@@ -318,16 +352,12 @@ class App(ctk.CTk):
         ctk.CTkLabel(nxt, text="NEXT STEP", text_color=BLUE, font=ctk.CTkFont(size=12, weight="bold"),
                      anchor="w").pack(fill="x", padx=20, pady=(14, 0))
         ctk.CTkLabel(nxt, text=step, font=ctk.CTkFont(size=19, weight="bold"), anchor="w").pack(fill="x", padx=20)
-        ctk.CTkLabel(nxt, text=sub, text_color=MUTED, anchor="w").pack(fill="x", padx=20, pady=(0, 14))
+        ctk.CTkLabel(nxt, text=sub, text_color=MUTED, anchor="w", justify="left",
+                     wraplength=WRAP - 260).pack(fill="x", padx=20, pady=(0, 14))
+        ctk.CTkButton(nxt, text="Start  (Enter)", fg_color=BLUE, height=40, width=200,
+                      command=self.start_run).place(relx=1.0, rely=0.5, x=-20, anchor="e")
         self.bind("<Return>", lambda e: self.start_run())
 
-        tiles = ctk.CTkFrame(b, fg_color="transparent")
-        tiles.pack(fill="x")
-        for label, cmd in (("Run (R)", self.start_run), ("Restore", self.show_restore),
-                           ("Folders & settings", self.show_settings)):
-            ctk.CTkButton(tiles, text=label, command=cmd, height=56, width=200,
-                          fg_color="transparent", border_width=1,
-                          text_color=("gray15", "gray90")).pack(side="left", padx=(0, 12))
         self.bind("<Key-r>", self._not_typing(self.start_run))
         stats = (f"{plural(info['photos'], 'photo')} and {plural(info['videos'], 'video')} found · "
                  f"{info['backed_up']:,} backed up in {plural(info['parts'], 'verified zip part')}")
@@ -337,12 +367,12 @@ class App(ctk.CTk):
         if last:
             ctk.CTkLabel(b, text=f"Last run: #{last['id']} · {last['state']}" +
                          (f" · {last['message']}" if last.get("message") else ""),
-                         text_color=MUTED, anchor="w", wraplength=860, justify="left").pack(fill="x")
+                         text_color=MUTED, anchor="w", wraplength=WRAP, justify="left").pack(fill="x")
         for p in self.state_info.problems:
-            ctk.CTkLabel(b, text="⚠ " + p, text_color=AMBER, anchor="w", wraplength=860,
+            ctk.CTkLabel(b, text="⚠ " + p, text_color=AMBER, anchor="w", wraplength=WRAP,
                          justify="left").pack(fill="x")
-        ctk.CTkLabel(b, text="Enter Next step · R Run · F1 All hotkeys", text_color=MUTED,
-                     anchor="w").pack(side="bottom", fill="x")
+        ctk.CTkLabel(self.footer_area, text="Enter Next step · R Run · F1 All hotkeys", text_color=MUTED,
+                     anchor="w").pack(side="left")
 
     def _found_panel(self, b, info):
         """What phase 2 worked out. Read-only for now; the review screens come in later phases."""
@@ -369,7 +399,7 @@ class App(ctk.CTk):
         if info.get("could_not_open"):
             lines.append(f"Couldn't open: {plural(info['could_not_open'], 'file')}")
         for line in lines:
-            ctk.CTkLabel(box, text=line, anchor="w", justify="left", wraplength=840).pack(fill="x", padx=16)
+            ctk.CTkLabel(box, text=line, anchor="w", justify="left", wraplength=WRAP - 30).pack(fill="x", padx=16)
         ctk.CTkLabel(box, text="Nothing has been moved. Your originals are untouched.", text_color=MUTED,
                      anchor="w").pack(fill="x", padx=16, pady=(4, 12))
 
@@ -399,7 +429,7 @@ class App(ctk.CTk):
         if self.runner is not None:
             return
         self.settings, self.state_info.problems = settings_mod.load(self.paths.settings)
-        b = self._screen("Working on your photos",
+        b = self._screen("Working on your photos", nav="run", nav_locked=True, subtitle=
                          "You can keep using your PC. If it's interrupted, the next run continues from there.")
         self.run_label = ctk.CTkLabel(b, text="Starting…", anchor="w")
         self.run_label.pack(fill="x", pady=(20, 6))
@@ -454,7 +484,7 @@ class App(ctk.CTk):
 
     # ---- restore ---------------------------------------------------------------
     def show_restore(self, result=None):
-        b = self._screen("Get something back",
+        b = self._screen("Get something back", nav="restore", subtitle=
                          "Put originals back exactly where they were, from your verified backups. "
                          "Nothing is ever overwritten without asking.")
         ctk.CTkButton(b, text="Restore everything", height=56, anchor="w",
@@ -486,7 +516,7 @@ class App(ctk.CTk):
                     f"skipped {result.skipped}, kept both {result.kept_both}, failed {len(result.failed)}.")
             ctk.CTkLabel(b, text=text, text_color=GREEN if not result.failed else AMBER,
                          anchor="w").pack(fill="x")
-        self._footer(back=("Back", self.show_home))
+        self._footer(back=("Home", self.show_home))
 
     def _restore_all(self):
         self._restore_ids(None)
@@ -507,7 +537,7 @@ class App(ctk.CTk):
     # ---- damaged catalog ---------------------------------------------------------
     def show_damaged(self):
         zip_path = self.state_info.learned_backup_available
-        self._screen("The app's data needs repairing",
+        self._screen("The app's data needs repairing", nav=None, subtitle=
                          "The file where the app keeps what it has learned is damaged. "
                          + ("It can be restored from your newest learned-data backup."
                             if zip_path else "No learned-data backup was found."))
