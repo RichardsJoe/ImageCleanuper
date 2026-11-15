@@ -30,6 +30,7 @@ class Box:
     corners: np.ndarray   # 4x2 float32, in full-image pixel coordinates
     confidence: float
     angle: float = 0.0    # tilt in degrees, normalised to -45..45
+    rect: float = 1.0     # how rectangular the outline is (1.0 = perfect)
 
 
 def _work_size(img: Image.Image, longest: int = 1200) -> tuple[np.ndarray, float]:
@@ -64,6 +65,44 @@ def _background_mask(rgb: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return diff <= max(18.0, spread + 10.0), bg
 
 
+def _lid_mask(rgb: np.ndarray) -> np.ndarray:
+    """The scanner lid, separated from light areas INSIDE photos (white walls, sky, Polaroid frames).
+
+    Colour alone isn't enough: a white wall in a print can be lid-coloured. So the image is first
+    cut along every edge (prints always have one where they meet the lid, even a faint one). Then
+    the largest even area is the lid, and other areas join it only if they match its colour AND its
+    evenness. Measured on real scans: lid texture ~0.3, light photo areas ~0.9 and 15-30 levels darker.
+    """
+    color_mask, bg = _background_mask(rgb)
+    gray = cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2GRAY)
+    g = gray.astype(np.float32)
+    mean = cv2.blur(g, (5, 5))
+    std = np.sqrt(np.maximum(cv2.blur(g * g, (5, 5)) - mean * mean, 0))
+    edges = cv2.Canny(cv2.GaussianBlur(gray, (3, 3), 0), 8, 24)
+    edges = cv2.dilate(edges, np.ones((3, 3), np.uint8))
+    # The lid is also even pixel by pixel; grainy light areas (sky, walls) never count as lid.
+    cand = (color_mask & (edges == 0) & (std < 2.0)).astype(np.uint8)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(cand, connectivity=4)
+    if n <= 1:
+        return color_mask
+    order = sorted(range(1, n), key=lambda i: -stats[i, cv2.CC_STAT_AREA])
+    biggest = order[0]
+    ref = labels == biggest
+    ref_mean = float(g[ref].mean())
+    ref_tex = float(np.median(std[ref]))
+    lid = ref.copy()
+    for i in order[1:]:
+        area = stats[i, cv2.CC_STAT_AREA]
+        if area < 0.002 * cand.size:
+            break
+        px = labels == i
+        if abs(float(g[px].mean()) - ref_mean) <= 8 and float(np.median(std[px])) <= max(0.6, ref_tex * 2):
+            lid |= px
+    # Give back the thin edge band next to the lid so prints aren't padded with lid colour.
+    grown = cv2.dilate(lid.astype(np.uint8), np.ones((3, 3), np.uint8), iterations=2).astype(bool)
+    return grown & color_mask
+
+
 def detect_scan(img: Image.Image, info: ImageInfo) -> ScanCheck:
     text = " ".join(x for x in (info.make, info.model, info.software) if x).lower()
     if text and any(w in text for w in SCANNER_WORDS) and not any(w in text for w in CAMERA_WORDS):
@@ -74,14 +113,14 @@ def detect_scan(img: Image.Image, info: ImageInfo) -> ScanCheck:
     if not no_camera:
         # Camera info present (Messenger/WhatsApp strip it, scanners rarely write it): a photo.
         return ScanCheck(False, 0.9, "has camera info")
-    rgb, _ = _work_size(img, 600)
-    mask, _bg = _background_mask(rgb)
+    rgb, _ = _work_size(img, 900)
+    mask = _lid_mask(rgb)
     bed_share = float(mask.mean())
     if not 0.08 < bed_share < 0.85:
         return ScanCheck(False, 0.9, "no scanner lid visible")
     # Several cleanly rectangular prints on a plain light background: prints on a scanner,
     # even when they're pushed right into the corners.
-    prints = [b for b in find_photos_on_scan(img, min_area_share=0.03) if b.confidence >= 0.9]
+    prints = [b for b in find_photos_on_scan(img, min_area_share=0.03) if b.rect >= 0.9]
     if len(prints) >= 2:
         return ScanCheck(True, 0.95, f"{len(prints)} prints on a scanner lid")
     # One print with a plain margin all round: probably a single scanned print.
@@ -95,7 +134,7 @@ def detect_scan(img: Image.Image, info: ImageInfo) -> ScanCheck:
 def find_photos_on_scan(img: Image.Image, min_area_share: float = 0.05) -> list[Box]:
     """Find separate prints on one scan. Returns boxes in full-resolution coordinates."""
     rgb, scale = _work_size(img, 1800)
-    mask, _ = _background_mask(rgb)
+    mask = _lid_mask(rgb)
     fg = (~mask).astype(np.uint8) * 255
     # Light clean-up only: heavy smoothing bridges the narrow gap between prints laid close together.
     fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8), iterations=1)   # remove dust specks
@@ -117,7 +156,7 @@ def find_photos_on_scan(img: Image.Image, min_area_share: float = 0.05) -> list[
             continue  # not print-shaped (e.g. two touching prints or a torn edge)
         corners = cv2.boxPoints(rect).astype(np.float32) / scale
         tilt = ((rect[2] + 45) % 90) - 45
-        boxes.append(Box(corners, float(min(0.99, rectangularity)), float(tilt)))
+        boxes.append(Box(corners, float(min(0.99, rectangularity)), float(tilt), float(rectangularity)))
     if len(boxes) == 1 and cv2.contourArea(boxes[0].corners) * scale * scale > 0.85 * area_total:
         return []  # the whole scan is one print
     _flag_suspicious_pairs(boxes)
@@ -146,7 +185,9 @@ def _flag_suspicious_pairs(boxes: list[Box]) -> None:
             v_gap = max(a[1], c[1]) - min(a[3], c[3])
             h_gap = max(a[0], c[0]) - min(a[2], c[2])
             same_tilt = abs(boxes[i].angle - boxes[j].angle) < 0.5
-            if same_tilt and ((same_cols and 0 <= v_gap < 0.35 * h) or (same_rows and 0 <= h_gap < 0.35 * w)):
+            # Only very narrow gaps are suspicious: prints laid out in a tidy grid line up too,
+            # with visible gaps between them (measured 15-40% on real scans).
+            if same_tilt and ((same_cols and 0 <= v_gap < 0.1 * h) or (same_rows and 0 <= h_gap < 0.1 * w)):
                 boxes[i].confidence = min(boxes[i].confidence, AMBIGUOUS_CUT)
                 boxes[j].confidence = min(boxes[j].confidence, AMBIGUOUS_CUT)
 

@@ -19,8 +19,9 @@ _log = log.get("analyze")
 
 TAG_ORIENTATION = 0x0112
 # Bump when analysis rules change so earlier results are redone on the next run.
-# 1 = 0.2.0-0.2.2, 2 = close prints separated (0.2.3), 3 = prints touching the scan edges (0.2.4).
-ANALYSIS_VERSION = 3
+# 1 = 0.2.0-0.2.2, 2 = close prints separated (0.2.3), 3 = prints touching the scan edges (0.2.4),
+# 4 = lid found by edges + texture: light walls, Polaroid frames, tidy grids (0.2.5).
+ANALYSIS_VERSION = 4
 
 
 def pending(cat: Catalog) -> list:

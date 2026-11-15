@@ -311,8 +311,10 @@ def test_split_crooked_prints_close_together(angles):
 
 
 def test_one_print_with_bright_sky_is_not_split():
+    import numpy as np
     p = scene(230, (1200, 900))
-    p.paste(Image.new("RGB", (1200, 120), (246, 247, 246)), (0, 300))  # washed-out sky band across the print
+    sky = np.clip(246 + np.random.default_rng(1).normal(0, 3, (120, 1200, 3)), 0, 255).astype("uint8")
+    p.paste(Image.fromarray(sky), (0, 300))  # washed-out (but grainy, like real film) sky band across the print
     bed = Image.new("RGB", (1600, 1300), (250, 250, 248))
     bed.paste(p, (200, 200))
     boxes = scans.find_photos_on_scan(bed)
@@ -357,3 +359,39 @@ def test_phone_photo_with_white_wall_is_not_a_scan():
     img.paste(scene(411, (500, 400)), (550, 120))                        # picture on the wall
     assert not scans.detect_scan(img, imageio.ImageInfo()).is_scan or \
         len(scans.find_photos_on_scan(img)) < 2
+
+
+def _grainy(color, size, seed, sd=3.0):
+    import numpy as np
+    arr = np.clip(np.array(color) + np.random.default_rng(seed).normal(0, sd, (size[1], size[0], 3)), 0, 255)
+    return Image.fromarray(arr.astype("uint8"))
+
+
+def test_grid_of_prints_with_light_walls():
+    """Modelled on a real scan: four prints in a grid, two with large light walls/floors touching
+    the print edge (lid-coloured at a glance). All four must be found, none flagged as suspicious."""
+    lid = (231, 229, 230)
+    bed = Image.new("RGB", (1454, 2000), lid)
+    for i, (x, y) in enumerate([(0, 0), (795, 0), (0, 1175), (785, 1175)]):
+        p = scene(500 + i, (675, 850))
+        if i in (1, 3):  # light wall filling half the print, right up to its edge
+            p.paste(_grainy((222, 214, 200), (675, 420), seed=i), (0, 0))
+        bed.paste(p, (x, y))
+    assert scans.detect_scan(bed, imageio.ImageInfo()).is_scan
+    boxes = scans.find_photos_on_scan(bed)
+    assert len(boxes) == 4
+    assert all(b.confidence > scans.AMBIGUOUS_CUT for b in boxes)  # a tidy grid isn't suspicious
+
+
+def test_polaroid_with_white_frame_on_white_lid():
+    lid = (232, 230, 231)
+    bed = Image.new("RGB", (1454, 2000), lid)
+    bed.paste(scene(520, (690, 950)), (0, 0))
+    polaroid = _grainy((246, 246, 244), (580, 700), seed=7, sd=1.5)  # white frame, slightly whiter than the lid
+    polaroid.paste(scene(521, (510, 500)), (35, 35))
+    bed.paste(polaroid, (870, 1300))
+    boxes = scans.find_photos_on_scan(bed)
+    assert len(boxes) == 2
+    big = max(boxes, key=lambda b: b.corners[:, 1].max())
+    h = big.corners[:, 1].max() - big.corners[:, 1].min()
+    assert h > 650  # the whole Polaroid including its frame, not just the picture inside
