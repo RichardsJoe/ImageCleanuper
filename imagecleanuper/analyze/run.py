@@ -20,8 +20,9 @@ _log = log.get("analyze")
 TAG_ORIENTATION = 0x0112
 # Bump when analysis rules change so earlier results are redone on the next run.
 # 1 = 0.2.0-0.2.2, 2 = close prints separated (0.2.3), 3 = prints touching the scan edges (0.2.4),
-# 4 = lid found by edges + texture: light walls, Polaroid frames, tidy grids (0.2.5).
-ANALYSIS_VERSION = 4
+# 4 = lid found by edges + texture: light walls, Polaroid frames, tidy grids (0.2.5),
+# 5 = single prints cut out; blank cards ignored (0.2.6).
+ANALYSIS_VERSION = 5
 
 
 def pending(cat: Catalog) -> list:
@@ -128,7 +129,9 @@ def analyze_file(cat: Catalog, f, derived_dir: str) -> int:
         upright, exif_rot = imageio.upright(img, info.orientation)
         scan = scans.detect_scan(upright, info)
         boxes = scans.find_photos_on_scan(upright) if scan.is_scan else []
-        if len(boxes) >= 2:
+        # One print or several: each is cut out. (find_photos_on_scan returns nothing when a
+        # single print fills the page, which then goes through the normal border trim.)
+        if len(boxes) >= 1:
             for i, box in enumerate(boxes):
                 piece = scans.straighten_and_crop(upright, box)
                 aid = _new_asset(cat, f["id"], "cutout", i, piece.width, piece.height)

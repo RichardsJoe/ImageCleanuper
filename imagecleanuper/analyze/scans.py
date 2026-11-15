@@ -134,7 +134,7 @@ def detect_scan(img: Image.Image, info: ImageInfo) -> ScanCheck:
 def find_photos_on_scan(img: Image.Image, min_area_share: float = 0.05) -> list[Box]:
     """Find separate prints on one scan. Returns boxes in full-resolution coordinates."""
     rgb, scale = _work_size(img, 1800)
-    mask = _lid_mask(rgb)
+    mask = _lid_mask(rgb) | _blank_sheets(rgb)
     fg = (~mask).astype(np.uint8) * 255
     # Light clean-up only: heavy smoothing bridges the narrow gap between prints laid close together.
     fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8), iterations=1)   # remove dust specks
@@ -154,6 +154,8 @@ def find_photos_on_scan(img: Image.Image, min_area_share: float = 0.05) -> list[
         rectangularity = area / (rw * rh)
         if rectangularity < 0.80:
             continue  # not print-shaped (e.g. two touching prints or a torn edge)
+        if _is_blank(rgb, rect):
+            continue  # an empty card or the back of a print: nothing to keep
         corners = cv2.boxPoints(rect).astype(np.float32) / scale
         tilt = ((rect[2] + 45) % 90) - 45
         boxes.append(Box(corners, float(min(0.99, rectangularity)), float(tilt), float(rectangularity)))
@@ -212,6 +214,39 @@ def _cut_background_strips(fg: np.ndarray, bg_mask: np.ndarray, min_share: float
             if margin_h <= j < h - margin_h:
                 out[y + j, x:x + w] = 0
     return out
+
+
+def _blank_sheets(rgb: np.ndarray) -> np.ndarray:
+    """Solid blank paper (an empty card, the back of a print) treated like the lid, so a photo
+    lying on top of it still comes out on its own. A Polaroid's white frame is NOT blank paper:
+    it's a ring with a picture inside, so it isn't 'solid'."""
+    gray = cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2GRAY)
+    g = gray.astype(np.float32)
+    mean = cv2.blur(g, (5, 5))
+    std = np.sqrt(np.maximum(cv2.blur(g * g, (5, 5)) - mean * mean, 0))
+    edges = cv2.dilate(cv2.Canny(cv2.GaussianBlur(gray, (3, 3), 0), 8, 24), np.ones((3, 3), np.uint8))
+    flat_light = ((std < 2.0) & (gray > 215) & (edges == 0)).astype(np.uint8)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(flat_light, connectivity=4)
+    out = np.zeros(gray.shape, bool)
+    for i in range(1, n):
+        x, y, w, h, area = stats[i]
+        if area >= 0.015 * gray.size and area / float(w * h) >= 0.7:   # big and solid, not a ring
+            out |= labels == i
+    if out.any():
+        out = cv2.dilate(out.astype(np.uint8), np.ones((3, 3), np.uint8), iterations=2).astype(bool)
+    return out
+
+
+def _is_blank(rgb: np.ndarray, rect) -> bool:
+    """True for a plain light piece with no picture in it (blank card, back of a print)."""
+    box = cv2.boxPoints(rect).astype(np.int32)
+    mask = np.zeros(rgb.shape[:2], np.uint8)
+    cv2.fillPoly(mask, [box], 1)
+    mask = cv2.erode(mask, np.ones((9, 9), np.uint8))  # ignore the piece's own edge
+    if mask.sum() < 100:
+        return False
+    gray = cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2GRAY)[mask.astype(bool)].astype(np.float32)
+    return float(gray.mean()) > 200 and float(np.percentile(gray, 99) - np.percentile(gray, 1)) < 30
 
 
 def _order_corners(pts: np.ndarray) -> np.ndarray:

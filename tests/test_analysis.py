@@ -395,3 +395,35 @@ def test_polaroid_with_white_frame_on_white_lid():
     big = max(boxes, key=lambda b: b.corners[:, 1].max())
     h = big.corners[:, 1].max() - big.corners[:, 1].min()
     assert h > 650  # the whole Polaroid including its frame, not just the picture inside
+
+
+def _hard_scan():
+    """Modelled on a real scan: a blank white card and ONE portrait in a plastic sleeve."""
+    from PIL import ImageDraw
+    lid = (232, 230, 232)
+    bed = Image.new("RGB", (1454, 2000), lid)
+    card = _grainy((240, 240, 242), (590, 860), seed=3, sd=1.2)
+    ImageDraw.Draw(card).rectangle([0, 0, 589, 859], outline=(205, 205, 210), width=2)  # card edge shadow
+    bed.paste(card, (380, 0))
+    sleeve = _grainy((236, 238, 240), (450, 600), seed=4, sd=2.0)            # clear plastic sleeve
+    sleeve.paste(scene(530, (420, 560)).point(lambda v: int(v * 0.8)), (12, 18))
+    ImageDraw.Draw(sleeve).rectangle([0, 0, 449, 599], outline=(150, 150, 160), width=2)
+    bed.paste(sleeve, (890, 135))
+    return bed
+
+
+def test_blank_card_ignored_single_print_found():
+    bed = _hard_scan()
+    boxes = scans.find_photos_on_scan(bed)
+    assert len(boxes) == 1
+    xs = boxes[0].corners[:, 0]
+    assert xs.min() > 850  # it's the portrait on the right, not the blank card
+
+
+def test_single_print_on_scan_is_cut_out(env):
+    paths, s, m1, _ = env
+    save_jpeg(_hard_scan(), m1 / "Scans" / "portrait.jpg", software="EPSON Scan")
+    cat, _ = run(paths, s)
+    cuts = cat.q("SELECT width, height FROM assets WHERE kind='cutout'")
+    assert len(cuts) == 1
+    assert 400 < cuts[0]["width"] < 500 and 550 < cuts[0]["height"] < 640  # just the photo, not the page
