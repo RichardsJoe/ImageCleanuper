@@ -85,3 +85,26 @@ def test_cutout_marked_wrong_keeps_whole_scan(env):
     pv = plan.preview(cat, derived)
     entries = pv.folders["Old Family Photos/1987/Holidays/Christmas"]
     assert len(entries) == 1 and entries[0].key.startswith("f")             # the whole scan instead of 3
+
+
+def test_rotation_suggestion_answer_and_undo(env):
+    paths, cat, derived = _setup(env)
+    aid = cat.scalar("SELECT id FROM assets WHERE kind='cutout' ORDER BY id LIMIT 1")
+    with cat.tx():
+        cat.db.execute("UPDATE fixes SET status='review', rotation_suggested=180, cut_conf=0.99 WHERE asset_id=?",
+                       (aid,))
+    item = [i for i in review.queue(cat, derived) if i.asset_id == aid][0]
+    assert item.question == "rotation" and item.suggested == 180
+    before = Image.open(item.derived).copy()
+    review.answer(cat, item, "looks_good", derived)
+    after = Image.open(item.derived)
+    assert list(after.rotate(180).getdata())[:50] == list(before.getdata())[:50] or after.size == before.size
+    assert cat.scalar("SELECT rotation FROM fixes WHERE asset_id=?", (aid,)) == 180
+    review.undo_last(cat, derived)
+    assert cat.scalar("SELECT rotation FROM fixes WHERE asset_id=?", (aid,)) == 0
+    assert Image.open(item.derived).size == before.size
+
+
+def test_no_faces_means_no_rotation():
+    from imagecleanuper.analyze import fix
+    assert fix.predict_sideways(scene(5)) == (0, 0.0)

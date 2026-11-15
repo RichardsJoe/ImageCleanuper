@@ -392,6 +392,8 @@ class App(ctk.CTk):
                 img = img.convert("RGB")
                 if crop and crop[0] == "crop":
                     img = img.crop(crop[1])
+                if crop and crop[0] == "rotate":
+                    img = img.rotate(crop[1], expand=True)
                 scale = min(box[0] / img.width, box[1] / img.height, 1.0)
                 if crop and crop[0] == "outline":   # draw the proposed trim on the original
                     x0, y0, x1, y1 = crop[1]
@@ -666,7 +668,11 @@ class App(ctk.CTk):
                      ).pack(fill="x")
         ctk.CTkLabel(right, text="After", text_color=MUTED, font=ctk.CTkFont(weight="bold"), anchor="w"
                      ).pack(fill="x")
-        if it.question == "trim":
+        if it.question == "rotation":
+            current = it.derived or it.original
+            self._image_box(left, current, size, "as it is now").pack()
+            self._image_box(right, current, size, "turned the suggested way", crop=("rotate", it.suggested)).pack()
+        elif it.question == "trim":
             self._image_box(left, it.original, size, "original · proposed trim in orange",
                             crop=("outline", it.trim_box) if it.trim_box else None).pack()
             if it.derived:
@@ -690,7 +696,7 @@ class App(ctk.CTk):
             finally:
                 c.close()
             self.show_review(index if value != "rotate" else index)
-        undo_label = "Undo fix" if it.question == "trim" else "Cut wrong: keep whole scan"
+        undo_label = {"trim": "Undo fix", "rotation": "Leave as is"}.get(it.question, "Cut wrong: keep whole scan")
         ctk.CTkButton(self.footer_area, text=f"{undo_label}  (U)", fg_color="transparent", border_width=1,
                       border_color="#c0392b", text_color="#c0392b", command=lambda: act("undo"),
                       width=200).pack(side="left")

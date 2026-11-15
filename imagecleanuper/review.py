@@ -25,6 +25,8 @@ from .paths import long_path
 QUESTIONS = {
     "trim": ("Did this fix look right?", "The app found a plain border to trim but wasn't sure, so it left the photo "
                                          "alone. Looks good trims it; Undo keeps the whole photo."),
+    "rotation": ("Is this the right way up?", "The app thinks this photo may be sideways or upside down but "
+                                              "wasn't sure. Looks good turns it as shown; Leave as is keeps it."),
     "cutout": ("Was this scan cut out correctly?", "The app wasn't sure about this cut-out (two prints merged, "
                                                    "or one print cut in two). Undo keeps the whole scan instead."),
 }
@@ -42,9 +44,14 @@ class Item:
     kind: str               # whole | cutout
     file_id: int
     rotation: int
+    suggested: int = 0      # suggested extra rotation (counter-clockwise degrees) for "rotation"
 
 
 def _question(r) -> str:
+    if r["kind"] == "cutout" and (r["cut_conf"] or 1) < 0.9:
+        return "cutout"
+    if r["rotation_suggested"]:
+        return "rotation"
     return "cutout" if r["kind"] == "cutout" else "trim"
 
 
@@ -52,7 +59,8 @@ def queue(cat: Catalog, derived_dir: str) -> list[Item]:
     """Items still waiting for an answer, in folder order."""
     rows = cat.q(
         """
-        SELECT a.id, a.kind, a.derived_path, a.file_id, f.orig_path, f.rel_path, x.trim_box, x.rotation
+        SELECT a.id, a.kind, a.derived_path, a.file_id, f.orig_path, f.rel_path, x.trim_box, x.rotation,
+               x.cut_conf, x.rotation_suggested
         FROM fixes x JOIN assets a ON a.id = x.asset_id JOIN active_files f ON f.id = a.file_id
         WHERE x.status = 'review'
         ORDER BY f.rel_path, a.cutout_index
@@ -64,7 +72,7 @@ def queue(cat: Catalog, derived_dir: str) -> list[Item]:
         title, sub = QUESTIONS[q]
         out.append(Item(r["id"], q, title, sub, r["orig_path"],
                         os.path.join(derived_dir, r["derived_path"]) if r["derived_path"] else None,
-                        box, r["kind"], r["file_id"], r["rotation"] or 0))
+                        box, r["kind"], r["file_id"], r["rotation"] or 0, r["rotation_suggested"] or 0))
     return out
 
 
@@ -105,10 +113,11 @@ def render_whole(cat: Catalog, asset_id: int, derived_dir: str) -> str | None:
         img.close()
 
 
-def _rotate_file_clockwise(path: str, steps: int = 1) -> tuple[int, int]:
+def _rotate_file(path: str, ccw_degrees: int) -> tuple[int, int]:
+    """Turn a saved cut-out in place (counter-clockwise degrees, like PIL)."""
     img = Image.open(long_path(path))
     img.load()
-    out = img.rotate(-90 * steps, expand=True)
+    out = img.rotate(ccw_degrees % 360, expand=True)
     exif = img.getexif()
     from .fileops import atomic_write
     atomic_write(path, lambda f: out.save(f, "JPEG", quality=95, exif=exif.tobytes(), subsampling=0),
@@ -134,8 +143,19 @@ def answer(cat: Catalog, item: Item, value: str, derived_dir: str) -> int:
             if item.kind == "whole":
                 render_whole(cat, item.asset_id, derived_dir)
             else:
-                w, h = _rotate_file_clockwise(os.path.join(derived_dir, prev["derived_path"]))
+                w, h = _rotate_file(os.path.join(derived_dir, prev["derived_path"]), -90)
                 cat.db.execute("UPDATE assets SET width=?, height=? WHERE id=?", (w, h, item.asset_id))
+        elif item.question == "rotation":
+            if value == "looks_good":
+                rot = (prev["rotation"] + item.suggested) % 360
+                cat.db.execute("UPDATE fixes SET rotation=?, status='accepted' WHERE asset_id=?", (rot, item.asset_id))
+                if item.kind == "whole":
+                    render_whole(cat, item.asset_id, derived_dir)
+                else:
+                    w, h = _rotate_file(os.path.join(derived_dir, prev["derived_path"]), item.suggested)
+                    cat.db.execute("UPDATE assets SET width=?, height=? WHERE id=?", (w, h, item.asset_id))
+            else:
+                cat.db.execute("UPDATE fixes SET status='undone' WHERE asset_id=?", (item.asset_id,))
         elif item.question == "trim":
             applied = 1 if value == "looks_good" else 0
             cat.db.execute("UPDATE fixes SET trim_applied=?, status=? WHERE asset_id=?",
@@ -157,9 +177,11 @@ def undo_last(cat: Catalog, derived_dir: str) -> int | None:
     prev = json.loads(r["prev"])
     kind = cat.scalar("SELECT kind FROM assets WHERE id=?", (r["asset_id"],))
     with cat.tx():
-        if r["value"] == "rotate" and kind == "cutout":
+        current = cat.scalar("SELECT rotation FROM fixes WHERE asset_id=?", (r["asset_id"],)) or 0
+        delta = (current - prev["rotation"]) % 360
+        if delta and kind == "cutout":   # cut-outs were turned in place: turn them back
             d = cat.scalar("SELECT derived_path FROM assets WHERE id=?", (r["asset_id"],))
-            w, h = _rotate_file_clockwise(os.path.join(derived_dir, d), steps=3)  # three more = back
+            w, h = _rotate_file(os.path.join(derived_dir, d), -delta)
             cat.db.execute("UPDATE assets SET width=?, height=? WHERE id=?", (w, h, r["asset_id"]))
         cat.db.execute("UPDATE fixes SET status=?, rotation=?, trim_applied=? WHERE asset_id=?",
                        (prev["status"], prev["rotation"], prev["trim_applied"], r["asset_id"]))

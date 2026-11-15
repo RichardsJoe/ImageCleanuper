@@ -174,6 +174,10 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX answers_asset ON answers(asset_id);
     """,
+    # 6: a suggested rotation the app wasn't sure enough to apply (asked about in Review)
+    """
+    ALTER TABLE fixes ADD COLUMN rotation_suggested INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 

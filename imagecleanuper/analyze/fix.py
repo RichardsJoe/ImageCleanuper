@@ -65,7 +65,47 @@ def apply_trim(img: Image.Image, trim: Trim) -> Image.Image:
     return img.crop(trim.box) if trim.box else img
 
 
+AUTO_ROTATE = 0.95      # confidence returned for a clear answer (rotate automatically)
+SUGGEST_ROTATE = 0.7    # a possible answer (ask in Review: "Is this the right way up?")
+_CASCADES = None
+
+
+def _cascades():
+    global _CASCADES
+    if _CASCADES is None:
+        import cv2
+        base = cv2.data.haarcascades
+        _CASCADES = [(cv2.CascadeClassifier(base + name), weight) for name, weight in
+                     (("haarcascade_frontalface_default.xml", 1.0), ("haarcascade_frontalface_alt2.xml", 1.0),
+                      ("haarcascade_profileface.xml", 0.6))]
+    return _CASCADES
+
+
+def face_score(img: Image.Image) -> float:
+    """How strongly upright faces are found (0 = none). Face detectors only find upright faces,
+    so trying all four turns shows which way is up."""
+    import cv2
+    g = np.asarray(img.convert("L"))
+    scale = 640 / max(g.shape)
+    g = cv2.equalizeHist(cv2.resize(g, None, fx=scale, fy=scale))
+    total = 0.0
+    for cascade, weight in _cascades():
+        boxes, _levels, weights = cascade.detectMultiScale3(g, scaleFactor=1.1, minNeighbors=5, minSize=(20, 20),
+                                                            outputRejectLevels=True)
+        if len(boxes):
+            total += weight * float(np.clip(weights, 0, 10).sum())
+    return total
+
+
 def predict_sideways(img: Image.Image) -> tuple[int, float]:
-    """Sideways check for photos with no camera orientation (e.g. scans).
-    Needs the image model, which arrives in phase 3; until then it never rotates."""
-    return 0, 0.0
+    """Which way is up, judged by faces (for scans and photos without camera rotation info).
+    Returns (counter-clockwise degrees to rotate, confidence). Thresholds measured on real scans:
+    clear wins rotate automatically, close calls are asked about, no faces = leave it alone."""
+    scores = {a: face_score(img.rotate(a, expand=True)) for a in (0, 90, 180, 270)}
+    best = max(scores, key=scores.get)
+    second = max(v for a, v in scores.items() if a != best)
+    if best == 0 or scores[best] < 5:
+        return 0, 0.0
+    if scores[best] >= 8 and scores[best] >= 2.5 * max(second, 0.5):
+        return best, AUTO_ROTATE
+    return best, SUGGEST_ROTATE

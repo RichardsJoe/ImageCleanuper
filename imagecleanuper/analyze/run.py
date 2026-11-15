@@ -22,8 +22,9 @@ TAG_ORIENTATION = 0x0112
 # 1 = 0.2.0-0.2.2, 2 = close prints separated (0.2.3), 3 = prints touching the scan edges (0.2.4),
 # 4 = lid found by edges + texture: light walls, Polaroid frames, tidy grids (0.2.5),
 # 5 = single prints cut out; blank cards ignored (0.2.6),
-# 6 = proposed trims kept for review (0.3.0).
-ANALYSIS_VERSION = 6
+# 6 = proposed trims kept for review (0.3.0),
+# 7 = upside-down / sideways prints turned upright using faces (0.3.1).
+ANALYSIS_VERSION = 7
 
 
 def pending(cat: Catalog) -> list:
@@ -137,10 +138,12 @@ def analyze_file(cat: Catalog, f, derived_dir: str) -> int:
                 piece = scans.straighten_and_crop(upright, box)
                 aid = _new_asset(cat, f["id"], "cutout", i, piece.width, piece.height)
                 _process(cat, aid, piece, info, exif_rot, scan, name_date, derived_dir,
-                         force_derived=True, cut_conf=box.confidence)
+                         force_derived=True, cut_conf=box.confidence, check_upright=True)
             return len(boxes)
         aid = _new_asset(cat, f["id"], "whole", None, upright.width, upright.height)
-        _process(cat, aid, upright, info, exif_rot, scan, name_date, derived_dir)
+        # Only scans can be the wrong way up: cameras and phones record which way is up, and
+        # Messenger/WhatsApp copies are turned upright before they're sent.
+        _process(cat, aid, upright, info, exif_rot, scan, name_date, derived_dir, check_upright=scan.is_scan)
         return 0
     finally:
         img.close()
@@ -148,15 +151,16 @@ def analyze_file(cat: Catalog, f, derived_dir: str) -> int:
 
 def _process(cat: Catalog, aid: int, img: Image.Image, info: imageio.ImageInfo, exif_rot: int,
              scan: scans.ScanCheck, name_date: str | None, derived_dir: str,
-             force_derived: bool = False, cut_conf: float | None = None) -> None:
-    rot, rot_conf = fix.predict_sideways(img)
+             force_derived: bool = False, cut_conf: float | None = None, check_upright: bool = False) -> None:
+    rot, rot_conf = fix.predict_sideways(img) if check_upright else (0, 0.0)
+    suggested = 0
     status = "none"
-    if rot and rot_conf >= 0.95:
+    if rot and rot_conf >= fix.AUTO_ROTATE:
         img = img.rotate(rot, expand=True)
         status = "auto"
     elif rot:
         status = "review"
-        rot = 0  # cautious: don't rotate, ask instead
+        suggested, rot = rot, 0  # cautious: don't rotate, ask "Is this the right way up?"
     trim = fix.find_border(img)
     trim_box = ",".join(map(str, trim.box)) if trim.box else None   # kept even when only proposed
     trim_applied = bool(trim.box and trim.confidence >= fix.AUTO_TRIM)
@@ -174,9 +178,9 @@ def _process(cat: Catalog, aid: int, img: Image.Image, info: imageio.ImageInfo, 
     w, h = img.size
     cat.db.execute("UPDATE assets SET derived_path=?, width=?, height=? WHERE id=?", (derived, w, h, aid))
     cat.db.execute(
-        "INSERT INTO fixes(asset_id, exif_rotation, rotation, rotation_conf, trim_box, trim_conf, trim_applied, "
-        "cut_conf, status) VALUES (?,?,?,?,?,?,?,?,?)",
-        (aid, exif_rot, rot, rot_conf or None, trim_box, trim.confidence or None, int(trim_applied),
+        "INSERT INTO fixes(asset_id, exif_rotation, rotation, rotation_conf, rotation_suggested, trim_box, trim_conf, "
+        "trim_applied, cut_conf, status) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (aid, exif_rot, rot, rot_conf or None, suggested, trim_box, trim.confidence or None, int(trim_applied),
          cut_conf, status))
     cat.db.execute(
         "INSERT INTO meta(asset_id, exif_date, exif_date_raw, camera_make, camera_model, software, filename_date, "
