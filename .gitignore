@@ -9,3 +9,5 @@ dist/
 *.partial
 .venv/
 venv/
+/models/
+/models_downloads/

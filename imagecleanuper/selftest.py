@@ -31,4 +31,17 @@ def _run() -> int:
         assert fix.find_border(img).box is not None
         scans.detect_scan(img, imageio.ImageInfo())
         hashes.phash(img), hashes.dhash(img)
+    # AI models: present in the packaged app, fingerprints OK, and they actually run.
+    from .ai import clip, faces, models
+    m = models.get()
+    if m is None:
+        raise SystemExit("AI models missing from the package")
+    problems = models.verify(m.folder)
+    if problems:
+        raise SystemExit("AI model problem: " + "; ".join(problems))
+    faces.detect(m, img)
+    e = clip.image_embedding(m, img)
+    t = clip.text_embeddings(m, ["a photo of a dog"])
+    assert e.shape == (512,) and t.shape == (1, 512)
+    print("models ok, providers:", m.providers)
     return 0

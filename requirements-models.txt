@@ -1,0 +1,4 @@
+# Only for building the AI model files (tools/export_models.py); not needed by the app.
+torch==2.5.1
+onnx==1.17.0
+onnxconverter-common==1.14.0

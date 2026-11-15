@@ -34,6 +34,19 @@ jobs:
           PYINSTALLER_COMPILE_BOOTLOADER: "1"
         run: pip install --no-binary pyinstaller --no-cache-dir pyinstaller==6.11.1
 
+      - name: Restore AI models from cache
+        id: models
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: models-v1-${{ hashFiles('tools/export_models.py', 'imagecleanuper/ai/tokenizer.py', 'requirements-models.txt') }}
+
+      - name: Build AI models (face detection/recognition + CLIP)
+        if: steps.models.outputs.cache-hit != 'true'
+        run: |
+          pip install -r requirements-models.txt
+          python tools/export_models.py models
+
       - name: Run tests
         run: python -m pytest -q -rs
 
@@ -51,7 +64,8 @@ jobs:
       - name: Build app with PyInstaller
         run: >
           pyinstaller --noconfirm --windowed --name ImageCleanuper
-          --collect-data customtkinter --collect-all pillow_heif run_app.py
+          --collect-data customtkinter --collect-all pillow_heif --collect-binaries onnxruntime
+          --add-data "models;models" run_app.py
 
       - name: Check the built app starts
         run: |
