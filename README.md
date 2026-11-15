@@ -9,12 +9,13 @@ See the [process flowchart](docs/FLOWCHART.md), the [app wireframes](docs/WIREFR
 | Phase | What it does | State |
 |---|---|---|
 | 1 Foundation | Settings, find every photo/video in nested folders, verified incremental zip backup, crash recovery, Restore, learned-data backup, Windows installer | **Built** (0.1) |
-| 2 Analysis | Dates (camera, file name, similar photo, folder clue), US holidays + custom events, exact/near duplicates, camera rotation, border trim, scan detection and splitting | **Built** (0.2) |
-| 3 People & categories | Faces, Who is this?, pets, categories, Junk, learning, sideways check | Next |
+| 2 Analysis | Dates, US holidays + custom events, duplicates, camera rotation, border trim, scan detection and splitting (prints in corners, grids, Polaroids, blank cards), upright prints via faces | **Built** (0.2–0.3) |
+| — Screens | Built to wireframes v4: nav bar, Home, Running, Needs review, Report (preview), Finish, Restore, Settings | **Built** (0.3) |
+| 3 People & categories | Faces, Who is this?, pets, categories, Junk, learning, local image model (also judges which way is up) | Next |
 | 4 Sorting | Plan, report, library sync, accuracy check, Finish | Planned |
 | 5 Extras | Google Photos import, optional Claude, polish | Planned |
 
-Versions 0.1–0.2 do **not** move, rename or change any original photo. They find, back up and analyze; fixed versions (rotated, trimmed, cut out of scans) are saved separately in the app's `data\derived` folder.
+Versions 0.1–0.3 do **not** move, rename or change any original photo. They find, back up and analyze; fixed versions (rotated, trimmed, cut out of scans) are saved separately in the app's `data\derived` folder.
 
 ## Install (Windows)
 
