@@ -53,7 +53,10 @@ def preview(cat: Catalog, derived_dir: str, categories: dict | None = None) -> P
         """
         SELECT a.id, a.kind, a.cutout_index, a.derived_path, f.id AS file_id, f.orig_path, f.rel_path, f.kind AS fkind,
                d.date, d.year_only, d.is_guess, h.holiday, m.is_scan, x.status AS fix_status,
-               (SELECT is_kept FROM dup_members dm WHERE dm.asset_id = a.id) AS dup_kept
+               (SELECT dm.is_kept FROM dup_members dm JOIN dup_groups g ON g.id = dm.group_id
+                 WHERE dm.asset_id = a.id AND g.kind <> 'burst') AS dup_kept,
+               f.sha256, (SELECT decision FROM copy_decisions WHERE content_key =
+                          f.sha256 || ':' || a.kind || ':' || IFNULL(a.cutout_index, '')) AS decision
         FROM assets a JOIN active_files f ON f.id = a.file_id
         LEFT JOIN dates d ON d.asset_id = a.id LEFT JOIN holidays h ON h.asset_id = a.id
         LEFT JOIN meta m ON m.asset_id = a.id LEFT JOIN fixes x ON x.asset_id = a.id
@@ -85,7 +88,10 @@ def preview(cat: Catalog, derived_dir: str, categories: dict | None = None) -> P
             image = os.path.join(derived_dir, r["derived_path"]) if r["derived_path"] else r["orig_path"]
             entry = Entry(f"a{r['id']}", os.path.basename(r["rel_path"]) + suffix, image, r["orig_path"],
                           bool(r["is_guess"]))
-        if r["dup_kept"] == 0:
+        if r["decision"] == "remove":         # you chose to remove this copy (Recycle Bin at Finish)
+            totals["removed"] += 1
+            continue
+        if r["dup_kept"] == 0 and r["decision"] != "keep":   # an extra copy you haven't decided on yet
             folders["_Duplicates"].append(entry)
             totals["duplicates"] += 1
             continue

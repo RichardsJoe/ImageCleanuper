@@ -98,7 +98,9 @@ The Next step, what's waiting for you, the accuracy scorecard, and when the last
 
 ![Duplicates](wireframes/11-duplicates.svg)
 
-Junk uses the same side-by-side layout as Duplicates, with **Delete (D)** and **Not junk (K)**.
+**Duplicates and burst shots** show one group at a time with every copy side by side. The app's pick is selected; press 1-9 to change it, **D** keeps the selection and removes the rest, **K** keeps all. Burst shots (same camera, seconds apart, nearly the same picture) are kept unless you choose; the sharpest is suggested. Bulk: "Do this for all groups…" with a confirmation. Removed copies leave the library at once and go to the Recycle Bin at Finish.
+
+Junk uses the same layout, with **Delete (D)** and **Not junk (K)**.
 
 ### 11. Finish
 A checklist (backup verified, accuracy), exactly what will happen, and typing FINISH to confirm.
@@ -138,3 +140,4 @@ What makes it easy to follow from start to finish:
 3. 2026-11-14 · v3: Spending-limit popup.
 4. 2026-11-15 · v4: Nav bar on every main screen; Home simplified (no duplicate action tiles, last run shows date/time, no run number); layout rules written down.
 5. 2026-11-15 · v5: Who is this? gets 3 suggested names (1-3 hotkeys); previews grow with the window (opens maximised).
+6. 2026-11-15 · v6: Duplicates redrawn as group selection (keep one or several, remove the rest, bulk); burst shots handled on the same screen.

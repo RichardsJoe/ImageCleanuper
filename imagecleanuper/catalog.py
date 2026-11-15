@@ -253,6 +253,17 @@ MIGRATIONS: list[str] = [
         created_at REAL NOT NULL
     );
     """,
+    # 10: burst shots + keep/remove choices for copies (survive re-analysis via content_key)
+    """
+    ALTER TABLE hashes ADD COLUMN sharpness REAL;
+    CREATE TABLE copy_decisions (
+        content_key TEXT PRIMARY KEY,     -- file fingerprint + cut-out position
+        decision TEXT NOT NULL,           -- keep | remove
+        batch INTEGER NOT NULL,           -- one click = one batch (Ctrl+Z undoes a whole batch)
+        prev TEXT,                        -- previous decision, if any
+        created_at REAL NOT NULL
+    );
+    """,
 ]
 
 

@@ -18,7 +18,7 @@ from ..fileops import atomic_write, remove_quietly
 from ..paths import long_path
 from . import clip, faces, models as models_mod
 
-AI_VERSION = 1   # bump when face/CLIP processing changes so it's redone on the next run
+AI_VERSION = 2   # 2 = sharpness for burst shots. Bump when face/CLIP processing changes so it's redone on the next run
 _log = log.get("ai")
 Progress = Callable[..., None]
 
@@ -59,6 +59,7 @@ def run(cat: Catalog, data_dir: str, min_face_px: int = 40, progress: Progress |
             img = _upright_image(r, derived_dir)
             found = faces.detect(m, img, min_face_px)
             emb = clip.image_embedding(m, img)
+            sharp = sharpness(img)
             with cat.tx():
                 for old in cat.q("SELECT crop_path FROM faces WHERE asset_id=? AND locked=0", (r["id"],)):
                     if old["crop_path"]:
@@ -77,7 +78,8 @@ def run(cat: Catalog, data_dir: str, min_face_px: int = 40, progress: Progress |
                         "VALUES (?,?,?,?,?,?,?,?, 'model')",
                         (r["id"], *f.box, f.score, f.embedding.astype("float32").tobytes(), name))
                     counts["faces"] += 1
-                cat.db.execute("UPDATE hashes SET clip=? WHERE asset_id=?", (clip.to_blob(emb), r["id"]))
+                cat.db.execute("UPDATE hashes SET clip=?, sharpness=? WHERE asset_id=?",
+                               (clip.to_blob(emb), sharp, r["id"]))
                 cat.db.execute("UPDATE assets SET ai_version=? WHERE id=?", (AI_VERSION, r["id"]))
             counts["photos"] += 1
         except Exception:   # one odd photo never stops the run
@@ -86,6 +88,17 @@ def run(cat: Catalog, data_dir: str, min_face_px: int = 40, progress: Progress |
             with cat.tx():
                 cat.db.execute("UPDATE assets SET ai_version=? WHERE id=?", (AI_VERSION, r["id"]))
     return counts
+
+
+def sharpness(img: Image.Image) -> float:
+    """How sharp a photo is (variance of the Laplacian on a 1000px copy). Blurry burst frames score low."""
+    import cv2
+    import numpy as np
+    g = np.asarray(img.convert("L"))
+    scale = 1000 / max(g.shape)
+    if scale < 1:
+        g = cv2.resize(g, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    return float(cv2.Laplacian(g, cv2.CV_64F).var())
 
 
 def _overlap(a, b) -> float:

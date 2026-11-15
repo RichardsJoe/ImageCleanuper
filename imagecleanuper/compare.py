@@ -40,7 +40,8 @@ def compare_all(cat: Catalog) -> dict:
     rows = cat.q(
         """
         SELECT a.id, a.kind, a.cutout_index, a.width, a.height, f.sha256, f.size, f.orig_path,
-               h.phash, h.dhash, h.pixels, m.exif_date
+               h.phash, h.dhash, h.pixels, h.clip, h.sharpness, m.exif_date, m.exif_date_raw, m.camera_make,
+               m.camera_model
         FROM assets a JOIN active_files f ON f.id = a.file_id
         LEFT JOIN hashes h ON h.asset_id = a.id LEFT JOIN meta m ON m.asset_id = a.id
         WHERE f.status = 'analyzed' AND f.kind = 'photo'
@@ -80,13 +81,34 @@ def compare_all(cat: Catalog) -> dict:
                 continue
             exact = len({info[m]["sha256"] for m in members}) == 1
             kind = "exact" if exact else "near"
+            # Different capture times (same camera, seconds apart) = burst shots, not copies:
+            # a re-saved copy keeps the original's time or loses it, it never gets a new one.
+            times = {info[m]["exif_date_raw"] for m in members if info[m]["exif_date_raw"]}
+            cams = {(info[m]["camera_make"], info[m]["camera_model"]) for m in members if info[m]["exif_date_raw"]}
+            if not exact and len(times) >= 2 and len(cams) == 1:
+                kind = "burst"
             gid = cat.db.execute("INSERT INTO dup_groups(kind) VALUES (?)", (kind,)).lastrowid
-            kept = choose_best([info[m] for m in members])
+            kept = (max(members, key=lambda m: info[m]["sharpness"] or 0) if kind == "burst"
+                    else choose_best([info[m] for m in members]))
             for m in members:
                 cat.db.execute("INSERT INTO dup_members(group_id, asset_id, is_kept) VALUES (?,?,?)",
                                (gid, m, int(m == kept)))
+            if kind == "burst":
+                counts["burst_groups"] = counts.get("burst_groups", 0) + 1
+                continue
             counts["exact_groups" if exact else "near_groups"] += 1
             counts["extra_copies"] += len(members) - 1
+        # Burst shots: photos not already in a duplicate group, taken seconds apart.
+        from .copies import find_bursts
+        taken = {m for members in groups.values() if len(members) >= 2 for m in members}
+        counts.setdefault("burst_groups", 0)
+        for members in find_bursts(rows, taken):
+            gid = cat.db.execute("INSERT INTO dup_groups(kind) VALUES ('burst')").lastrowid
+            sharpest = max(members, key=lambda m: info[m]["sharpness"] or 0)
+            for m in members:
+                cat.db.execute("INSERT INTO dup_members(group_id, asset_id, is_kept) VALUES (?,?,?)",
+                               (gid, m, int(m == sharpest)))
+            counts["burst_groups"] += 1
     return counts
 
 

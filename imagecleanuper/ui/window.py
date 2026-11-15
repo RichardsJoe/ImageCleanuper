@@ -76,7 +76,8 @@ class App(ctk.CTk):
         if self.body is not None:
             self.body.destroy()
         for seq in ("<Return>", "<Escape>", "<Key-r>", "<Key-a>", "<Key-u>", "<Key-s>", "<Key-n>", "<space>",
-                    "<Left>", "<Right>", "<Control-z>", "<Key-1>", "<Key-2>", "<Key-3>"):
+                    "<Left>", "<Right>", "<Control-z>", "<Key-d>", "<Key-k>",
+                    *[f"<Key-{i}>" for i in range(1, 10)]):
             self.unbind(seq)
         self._images = []
         self.body = ctk.CTkFrame(self, fg_color="transparent")
@@ -446,11 +447,13 @@ class App(ctk.CTk):
                 from .. import people as people_mod
                 info["fixes"] = review_mod.count(cat)
                 info["who"] = len(people_mod.groups(cat, limit=self.settings.people_per_round))
-                info["review"] = info["fixes"] + info["who"]
+                from .. import copies as copies_mod
+                info["copies"] = copies_mod.count_undecided(cat)
+                info["review"] = info["fixes"] + info["who"] + info["copies"]
             finally:
                 cat.close()
         else:
-            info["review"] = info["fixes"] = info["who"] = 0
+            info["review"] = info["fixes"] = info["who"] = info["copies"] = 0
         return info
 
     # ---- home (wireframe 05) ----------------------------------------------------
@@ -498,7 +501,8 @@ class App(ctk.CTk):
         chips.pack(fill="x", pady=(4, 16))
         shown = False
         for label, n, cmd in (("Who is this?", info.get("who", 0), self.show_review),
-                              ("Needs review", info.get("fixes", 0), lambda: self.show_review(skip_people=True))):
+                              ("Needs review", info.get("fixes", 0), lambda: self.show_review(skip_people=True)),
+                              ("Duplicates & bursts", info.get("copies", 0), lambda: self.show_dups(0))):
             if n:
                 shown = True
                 ctk.CTkButton(chips, text=f"{label}   {n:,}", corner_radius=16, height=32,
@@ -680,15 +684,9 @@ class App(ctk.CTk):
         items = review_mod.queue(cat, derived, self.settings.categories) if cat else []
         if cat:
             cat.close()
-        if not items:
-            b = self._screen("Review", nav="review", review_count=0, subtitle=
-                             "Nothing to review right now. Questions appear here after a run when the app "
-                             "isn't sure about a fix or a scan cut-out.")
-            self._footer(back=("Home", self.show_home))
-            self.bind("<Control-z>", lambda e: self._review_undo(0))
-            self._hotkey_line("Esc Home · Ctrl+Z Undo last answer")
-            return
-        index = max(0, min(index, len(items) - 1))
+        if index >= len(items):        # past the last question: duplicates and burst shots come next
+            return self.show_dups(0)
+        index = max(0, index)
         it = items[index]
         b = self._screen(it.title, nav="review",
                          subtitle=f"{it.subtitle}      {index + 1} of {len(items)}")
@@ -938,6 +936,152 @@ class App(ctk.CTk):
         ctk.CTkButton(bar, text=f"Yes, {existing}  (Enter)", fg_color=BLUE, command=lambda: pick(existing)
                       ).pack(side="right")
         win.bind("<Return>", lambda e: pick(existing))
+        win.bind("<Escape>", lambda e: win.destroy())
+        win.after(50, win.grab_set)
+
+    # ---- duplicates & burst shots (wireframe 11) ------------------------------------
+    def show_dups(self, index: int = 0, selected: set | None = None):
+        from .. import copies as copies_mod
+        derived = str(self.paths.data / "derived")
+        if not self.paths.catalog.exists():
+            gs = []
+        else:
+            c = Catalog(self.paths.catalog)
+            try:
+                gs = copies_mod.groups(c, derived)
+            finally:
+                c.close()
+        if not gs:
+            self._screen("Review", nav="review", subtitle="Nothing to review right now. Questions appear here "
+                         "after a run when the app needs your help.")
+            self._footer(back=("Home", self.show_home))
+            self.bind("<Control-z>", lambda e: self._dups_undo(0))
+            self._hotkey_line("Esc Home · Ctrl+Z Undo last answer")
+            return
+        index = max(0, min(index, len(gs) - 1))
+        g = gs[index]
+        burst = g.kind == "burst"
+        if selected is None:
+            selected = set(g.pick)
+        n = len(g.copies)
+        title = (f"Burst shots, {n} photos: pick the ones to keep" if burst
+                 else f"Same photo, {n} copies: pick the one to keep")
+        sub = ("Taken seconds apart. The sharpest is selected; press numbers to pick more, or Keep all."
+               if burst else "The app's pick (most pixels, has a date, biggest file) is selected. "
+                             "Removed copies go to the Recycle Bin at Finish.")
+        kind_count = sum(1 for x in gs if (x.kind == "burst") == burst)
+        b = self._screen(title, nav="review", subtitle=f"{sub}      Group {index + 1} of {len(gs)}")
+        cw, ch = self._avail()
+        per_row = min(n, 4)
+        tw = int(max(140, min(360, (cw - 20) / per_row - 18)))
+        th = int(max(120, min(ch - 160, tw * 0.8)))
+        grid = ctk.CTkFrame(b, fg_color="transparent")
+        grid.pack(fill="x")
+
+        def toggle(i):
+            sel = set(selected)
+            if burst:
+                sel ^= {i}
+            else:
+                sel = {i}
+            self.show_dups(index, sel)
+        for i, cp in enumerate(g.copies):
+            on = i in selected
+            card = ctk.CTkFrame(grid, border_width=3 if on else 1, border_color=BLUE if on else ("gray75", "gray35"),
+                                fg_color=("#eef4ff", "#1e2a3a") if on else "transparent")
+            card.grid(row=i // per_row, column=i % per_row, padx=6, pady=6, sticky="n")
+            box = self._image_box(card, cp.image, (tw, th))
+            box.pack(padx=8, pady=(8, 4))
+            mp = f"{cp.pixels / 1e6:.1f} MP" if cp.pixels else ""
+            info = f"{i + 1}" + ("   ✓ keep" if on else "") + f"\n{mp} · {cp.size / 1024:,.0f} KB"
+            if burst:
+                info += f" · sharpness {cp.sharpness:,.0f}"
+            info += f"\n{cp.folder[:34]}"
+            lab = ctk.CTkLabel(card, text=info, justify="left", anchor="w", text_color=BLUE if on else ("gray20", "gray85"))
+            lab.pack(fill="x", padx=10, pady=(0, 8))
+            for w in (card, box, lab):
+                w.bind("<Button-1>", lambda e, k=i: toggle(k))
+            if i < 9:
+                self.bind(f"<Key-{i + 1}>", self._not_typing(lambda k=i: toggle(k)))
+
+        def save(keep_all: bool = False):
+            keep = {cp.content_key: (keep_all or i in selected) for i, cp in enumerate(g.copies)}
+            if not any(keep.values()):
+                return self.error(UserError("Pick at least one photo to keep."), title="Nothing selected")
+            c2 = Catalog(self.paths.catalog)
+            try:
+                copies_mod.decide(c2, keep)
+            finally:
+                c2.close()
+            self.show_dups(index)   # the next group slides into this position
+
+        def bulk():
+            same = [x for x in gs if (x.kind == "burst") == burst]
+            removing = sum(len(x.copies) - len(x.pick) for x in same)
+            what = (f"Keep only the sharpest photo in all {len(same):,} bursts? {removing:,} photos will be removed."
+                    if burst else f"Keep the app's pick in all {len(same):,} duplicate groups? {removing:,} extra "
+                                  f"copies will be removed.")
+            self._confirm(what, "They leave the library now and go to the Recycle Bin at Finish. The backup "
+                                "keeps everything, and Ctrl+Z undoes this.", "Yes, do it", lambda: apply_bulk(same))
+
+        def apply_bulk(same):
+            keep = {}
+            for x in same:
+                for i, cp in enumerate(x.copies):
+                    keep[cp.content_key] = i in x.pick
+            c2 = Catalog(self.paths.catalog)
+            try:
+                copies_mod.decide(c2, keep)
+            finally:
+                c2.close()
+            self.show_dups(0)
+        noun = ("burst" if burst else "group") + ("" if kind_count == 1 else "s")
+        ctk.CTkButton(self.footer_area, text=f"Do this for {'the' if kind_count == 1 else 'all'} {kind_count:,} {noun}…",
+                      fg_color="transparent", border_width=1, text_color=("gray30", "gray80"), width=230,
+                      command=bulk).pack(side="left")
+        ctk.CTkButton(self.footer_area, text="Keep selected, remove rest  (D)", fg_color="transparent",
+                      border_width=1, border_color="#c0392b", text_color="#c0392b", width=250,
+                      command=save).pack(side="right")
+        ctk.CTkButton(self.footer_area, text="Keep all  (K)", fg_color="transparent", border_width=1, width=130,
+                      text_color=("gray15", "gray90"), command=lambda: save(True)).pack(side="right", padx=8)
+        ctk.CTkButton(self.footer_area, text="Next  →", fg_color="transparent", width=80,
+                      text_color=("gray30", "gray80"), command=lambda: self.show_dups(index + 1)).pack(side="right")
+        self.bind("<Key-d>", self._not_typing(save))
+        self.bind("<Key-k>", self._not_typing(lambda: save(True)))
+        self.bind("<Right>", lambda e: self.show_dups(index + 1))
+        self.bind("<Left>", lambda e: self.show_dups(index - 1) if index > 0 else self.show_review(10 ** 6, True))
+        self.bind("<Escape>", lambda e: self.show_home())
+        self.bind("<Control-z>", lambda e: self._dups_undo(index))
+        self._hotkey_line("1-9 Select · D Keep selected, remove the rest · K Keep all · → Next · ← Back · "
+                          "Ctrl+Z Undo · Esc Home")
+
+    def _dups_undo(self, index):
+        from .. import copies as copies_mod
+        c = Catalog(self.paths.catalog)
+        try:
+            copies_mod.undo_last(c)
+        finally:
+            c.close()
+        self.show_dups(index)
+
+    def _confirm(self, question: str, detail: str, yes: str, on_yes):
+        win = ctk.CTkToplevel(self)
+        win.title("Please confirm")
+        win.geometry("540x230")
+        win.transient(self)
+        ctk.CTkLabel(win, text=question, font=ctk.CTkFont(size=16, weight="bold"), wraplength=490,
+                     justify="left").pack(padx=24, pady=(22, 6), anchor="w")
+        ctk.CTkLabel(win, text=detail, wraplength=490, justify="left", text_color=MUTED).pack(padx=24, anchor="w")
+        bar = ctk.CTkFrame(win, fg_color="transparent")
+        bar.pack(side="bottom", fill="x", padx=24, pady=18)
+
+        def go():
+            win.destroy()
+            on_yes()
+        ctk.CTkButton(bar, text="Cancel (Esc)", fg_color="transparent", border_width=1,
+                      text_color=("gray20", "gray85"), command=win.destroy).pack(side="left")
+        ctk.CTkButton(bar, text=f"{yes} (Enter)", fg_color=BLUE, command=go).pack(side="right")
+        win.bind("<Return>", lambda e: go())
         win.bind("<Escape>", lambda e: win.destroy())
         win.after(50, win.grab_set)
 

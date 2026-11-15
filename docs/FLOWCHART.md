@@ -147,6 +147,8 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Folder-name clues** can also give a holiday (`Christmas 2015`). They're used only for undated photos.
 - **Holidays:** US calendar with adjustable windows and your own custom events.
 - **Videos** are sorted into `Year\Videos` by date (no face or pet detection).
+- **Burst shots** (same camera, taken within a few seconds, nearly the same picture) are grouped separately: shown side by side with the sharpest suggested, and kept unless you choose otherwise.
+- **Removing copies** (duplicates or burst frames) takes them out of the library straight away; the files themselves go to the Recycle Bin at Finish, after the backup is verified. The backup keeps every copy.
 - **Duplicates:** exact copies and resized or re-saved copies. The best copy (highest resolution) is sorted and the extras go to `_Duplicates`. Burst shots and edited versions are kept.
 - **Categories:** People, Pets, Scenic, Projects, Other, plus a top-level `_Junk` (screenshots, memes, blurry or accidental shots). You can add your own categories in `settings.ini`, each with a description that the AI uses at first; your corrections teach it after that.
 
