@@ -256,3 +256,82 @@ def test_T21_other_formats_open(tmp_path):
         pytest.skip("HEIF encoder not available here")
     opened, _ = imageio.open_image(str(p))
     assert opened.size == (400, 300)
+
+
+def test_cutouts_listed_and_exported_with_readable_names(env, tmp_path):
+    from imagecleanuper.cutouts import export_cutouts, letter, scans_with_cutouts
+    paths, s, m1, _ = env
+    bed = scanner_bed([scene(30, (700, 500)), scene(31, (500, 700)), scene(32, (800, 550))], [2, -3, 1])
+    save_jpeg(bed, m1 / "Family" / "page1.jpg", software="EPSON Scan")
+    save_jpeg(scene(33), m1 / "phone.jpg", date="2020:01:01 10:00:00", make="Apple")
+    cat, _ = run(paths, s)
+    scans_ = scans_with_cutouts(cat)
+    assert len(scans_) == 1 and len(scans_[0].cutouts) == 3
+    n, folder = export_cutouts(cat, str(paths.data / "derived"), str(tmp_path / "out"))
+    assert n == 3
+    label = cat.scalar("SELECT label FROM sources ORDER BY id LIMIT 1")
+    names = sorted(os.listdir(tmp_path / "out" / label / "Family"))
+    assert names == ["page1_a.jpg", "page1_b.jpg", "page1_c.jpg"]
+    assert [letter(i) for i in (0, 25, 26)] == ["a", "z", "aa"]
+
+
+@pytest.mark.parametrize("gap", [40, 12])
+def test_split_prints_close_together(gap):
+    """Prints laid close to each other on the bed must still come out as separate photos."""
+    bed = Image.new("RGB", (2000, 1000), (250, 250, 248))
+    a, b2 = scene(201, (800, 600)), scene(202, (800, 600))
+    bed.paste(a, (100, 200))
+    bed.paste(b2, (100 + 800 + gap, 200))
+    boxes = scans.find_photos_on_scan(bed)
+    assert len(boxes) == 2
+    # Perfectly aligned with a narrow strip: can't be told apart from one print with a band,
+    # so the cut is flagged for review rather than trusted.
+    assert all(b.confidence <= scans.AMBIGUOUS_CUT for b in boxes)
+
+
+def test_split_white_bordered_prints_on_white_bed():
+    """Old prints often have white borders, almost the same colour as the scanner lid."""
+    bed = Image.new("RGB", (2400, 1200), (247, 247, 247))
+    for i, x in enumerate((100, 1250)):
+        framed = Image.new("RGB", (1000, 760), (255, 255, 255))
+        framed.paste(scene(210 + i, (900, 660)), (50, 50))
+        bed.paste(framed.rotate(2 if i else -2, expand=True, fillcolor=(247, 247, 247)), (x, 150))
+    boxes = scans.find_photos_on_scan(bed)
+    assert len(boxes) == 2
+
+
+@pytest.mark.parametrize("angles", [(3, -2), (-4, 4)])
+def test_split_crooked_prints_close_together(angles):
+    bed = Image.new("RGB", (2200, 1100), (250, 250, 248))
+    for i, (x, ang) in enumerate(zip((80, 1000), angles)):
+        p = scene(220 + i, (850, 620)).rotate(ang, expand=True, fillcolor=(250, 250, 248))
+        bed.paste(p, (x, 150))
+    boxes = scans.find_photos_on_scan(bed)
+    assert len(boxes) == 2 and all(b.confidence > scans.AMBIGUOUS_CUT for b in boxes)  # hand-placed: trusted
+
+
+def test_one_print_with_bright_sky_is_not_split():
+    p = scene(230, (1200, 900))
+    p.paste(Image.new("RGB", (1200, 120), (246, 247, 246)), (0, 300))  # washed-out sky band across the print
+    bed = Image.new("RGB", (1600, 1300), (250, 250, 248))
+    bed.paste(p, (200, 200))
+    boxes = scans.find_photos_on_scan(bed)
+    # Indistinguishable from two aligned prints. Never trusted silently: either not cut,
+    # or cut and flagged "check this cut" for the review screen.
+    assert len(boxes) <= 1 or all(b.confidence <= scans.AMBIGUOUS_CUT for b in boxes)
+
+
+def test_files_analyzed_by_older_rules_are_redone(env, monkeypatch):
+    from imagecleanuper.analyze import run as analyze_run
+    paths, s, m1, _ = env
+    save_jpeg(scene(300), m1 / "a.jpg", date="2020:01:01 10:00:00", make="Apple")
+    run(paths, s)
+    calls = []
+    real = imageio.open_image
+    monkeypatch.setattr(imageio, "open_image", lambda p: (calls.append(p), real(p))[1])
+    run(paths, s)
+    assert calls == []                        # same rules: nothing redone
+    monkeypatch.setattr(analyze_run, "ANALYSIS_VERSION", analyze_run.ANALYSIS_VERSION + 1)
+    cat, _ = run(paths, s)
+    assert len(calls) == 1                    # newer rules: redone once
+    assert cat.scalar("SELECT COUNT(*) FROM assets") == 1  # old results replaced, not duplicated

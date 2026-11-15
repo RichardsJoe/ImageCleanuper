@@ -18,6 +18,9 @@ Progress = Callable[[str, int, int], None]
 _log = log.get("analyze")
 
 TAG_ORIENTATION = 0x0112
+# Bump when analysis rules change so earlier results are redone on the next run.
+# 1 = 0.2.0-0.2.2, 2 = better separation of prints laid close together (0.2.3).
+ANALYSIS_VERSION = 2
 
 
 def pending(cat: Catalog) -> list:
@@ -25,11 +28,12 @@ def pending(cat: Catalog) -> list:
     return cat.q(
         """
         SELECT f.* FROM active_files f
-        WHERE f.status = 'new' AND f.busy = 0
+        WHERE (f.status = 'new' OR (f.status IN ('analyzed', 'could_not_open') AND f.analysis_version < ?))
+          AND f.busy = 0
           AND f.sha256 IN (SELECT e.sha256 FROM backup_entries e
                            JOIN backup_parts p ON p.id = e.part_id WHERE p.verified = 1)
         ORDER BY f.id
-        """)
+        """, (ANALYSIS_VERSION,))
 
 
 def analyze_pending(cat: Catalog, derived_dir: str, progress: Progress | None = None) -> dict:
@@ -44,20 +48,20 @@ def analyze_pending(cat: Catalog, derived_dir: str, progress: Progress | None = 
                 counts["reused"] += 1
             else:
                 counts["cutouts"] += analyze_file(cat, f, derived_dir)
-            cat.db.execute("UPDATE files SET status='analyzed', open_error=NULL, updated_at=? WHERE id=?",
-                           (time.time(), f["id"]))
+            cat.db.execute("UPDATE files SET status='analyzed', open_error=NULL, analysis_version=?, updated_at=? "
+                           "WHERE id=?", (ANALYSIS_VERSION, time.time(), f["id"]))
             counts["analyzed"] += 1
         except imageio.DecodeError as e:
             _clear_assets(cat, f["id"], derived_dir)
-            cat.db.execute("UPDATE files SET status='could_not_open', open_error=?, updated_at=? WHERE id=?",
-                           (str(e), time.time(), f["id"]))
+            cat.db.execute("UPDATE files SET status='could_not_open', open_error=?, analysis_version=?, updated_at=? "
+                           "WHERE id=?", (str(e), ANALYSIS_VERSION, time.time(), f["id"]))
             counts["could_not_open"] += 1
         except Exception as e:  # one strange file must never stop the run
             _log.exception("analysis failed for %s", f["orig_path"])
             _clear_assets(cat, f["id"], derived_dir)
-            cat.db.execute("UPDATE files SET status='could_not_open', open_error=?, updated_at=? WHERE id=?",
-                           (f"The app hit a problem reading this file ({type(e).__name__}).",
-                            time.time(), f["id"]))
+            cat.db.execute("UPDATE files SET status='could_not_open', open_error=?, analysis_version=?, updated_at=? "
+                           "WHERE id=?", (f"The app hit a problem reading this file ({type(e).__name__}).",
+                                          ANALYSIS_VERSION, time.time(), f["id"]))
             counts["could_not_open"] += 1
         cat.db.commit()  # R8: a crash redoes at most this one file
     return counts
@@ -79,8 +83,8 @@ def _clear_assets(cat: Catalog, file_id: int, derived_dir: str) -> None:
 def _reuse_exact_copy(cat: Catalog, f, derived_dir: str) -> bool:
     """An identical file (same fingerprint) was already analyzed: copy its results instead of
     redoing the work. Dates from the file name are recomputed for this path."""
-    src = cat.one("SELECT id FROM files WHERE sha256=? AND status='analyzed' AND id<>? ORDER BY id LIMIT 1",
-                  (f["sha256"], f["id"]))
+    src = cat.one("SELECT id FROM files WHERE sha256=? AND status='analyzed' AND analysis_version=? AND id<>? "
+                  "ORDER BY id LIMIT 1", (f["sha256"], ANALYSIS_VERSION, f["id"]))
     if not src:
         return False
     _clear_assets(cat, f["id"], derived_dir)

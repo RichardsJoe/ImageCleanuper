@@ -151,6 +151,14 @@ MIGRATIONS: list[str] = [
         SELECT f.* FROM files f JOIN sources s ON s.id = f.source_id
         WHERE s.enabled = 1 AND f.missing = 0;
     """,
+    # 4: files analyzed by older rules are redone automatically (see analyze.run.ANALYSIS_VERSION)
+    """
+    ALTER TABLE files ADD COLUMN analysis_version INTEGER NOT NULL DEFAULT 0;
+    DROP VIEW active_files;
+    CREATE VIEW active_files AS
+        SELECT f.* FROM files f JOIN sources s ON s.id = f.source_id
+        WHERE s.enabled = 1 AND f.missing = 0;
+    """,
 ]
 
 

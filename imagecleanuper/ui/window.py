@@ -64,7 +64,7 @@ class App(ctk.CTk):
         pinned to the bottom (so buttons are always visible, however small the window)."""
         if self.body is not None:
             self.body.destroy()
-        for seq in ("<Return>", "<Escape>", "<Key-r>", "<Key-a>", "<space>"):
+        for seq in ("<Return>", "<Escape>", "<Key-r>", "<Key-a>", "<Key-v>", "<space>", "<Left>", "<Right>"):
             self.unbind(seq)
         self.body = ctk.CTkFrame(self, fg_color="transparent")
         self.body.pack(fill="both", expand=True)
@@ -126,9 +126,9 @@ class App(ctk.CTk):
             fn()
         return handler
 
-    def error(self, e: Exception):
+    def error(self, e: Exception, title: str = "Something needs attention"):
         win = ctk.CTkToplevel(self)
-        win.title("Something needs attention")
+        win.title(title)
         win.geometry("560x260")
         win.transient(self)
         msg = e.message if isinstance(e, UserError) else "Something went wrong. Nothing was lost."
@@ -408,6 +408,10 @@ class App(ctk.CTk):
             lines.append(f"Couldn't open: {plural(info['could_not_open'], 'file')}")
         for line in lines:
             ctk.CTkLabel(box, text=line, anchor="w", justify="left", wraplength=WRAP - 30).pack(fill="x", padx=16)
+        if info.get("cutouts"):
+            ctk.CTkButton(box, text=f"View scan cut-outs ({info['cutouts']:,})  (V)", width=240,
+                          command=self.show_scans).pack(anchor="w", padx=16, pady=(8, 0))
+            self.bind("<Key-v>", self._not_typing(self.show_scans))
         ctk.CTkLabel(box, text="Nothing has been moved. Your originals are untouched.", text_color=MUTED,
                      anchor="w").pack(fill="x", padx=16, pady=(4, 12))
 
@@ -492,6 +496,106 @@ class App(ctk.CTk):
         self.after(100, self._poll)
 
     # ---- restore ---------------------------------------------------------------
+    # ---- scan cut-outs ----------------------------------------------------------
+    SCANS_PER_PAGE = 8
+
+    def _thumb(self, path: str, box: tuple[int, int]):
+        """Small preview image, cached in data\\thumbs so pages open quickly next time."""
+        from PIL import Image
+        from ..analyze.imageio import open_image, upright
+        from ..paths import long_path
+        cache = self.paths.data / "thumbs"
+        cache.mkdir(parents=True, exist_ok=True)
+        import hashlib
+        key = hashlib.sha1(f"{path}|{os.path.getmtime(long_path(path))}|{box}".encode()).hexdigest() + ".png"
+        p = cache / key
+        if p.exists():
+            img = Image.open(p)
+            img.load()
+        else:
+            img, info = open_image(path)
+            img, _ = upright(img, info.orientation)
+            img = img.convert("RGB")
+            img.thumbnail(box)
+            img.save(p)
+        return ctk.CTkImage(light_image=img, dark_image=img, size=img.size)
+
+    def show_scans(self, page: int = 0):
+        from ..cutouts import letter, scans_with_cutouts
+        cat = Catalog(self.paths.catalog)
+        scans = scans_with_cutouts(cat)
+        cat.close()
+        total = len(scans)
+        pages = max(1, (total + self.SCANS_PER_PAGE - 1) // self.SCANS_PER_PAGE)
+        page = max(0, min(page, pages - 1))
+        b = self._screen("Scan cut-outs", nav="home", subtitle=(
+            f"{plural(total, 'scan')} had several photos on them. Each scan is shown on the left with the photos "
+            "cut out of it. Check that every print was found and none were merged or cut in half."))
+        self._thumbs = []  # keep references so Tk doesn't drop the images
+        derived = self.paths.data / "derived"
+        for sc in scans[page * self.SCANS_PER_PAGE:(page + 1) * self.SCANS_PER_PAGE]:
+            card = ctk.CTkFrame(b)
+            card.pack(fill="x", pady=6)
+            unsure = sum(1 for c in sc.cutouts if c[3])
+            ctk.CTkLabel(card, text=f"{sc.rel_path}  →  {plural(len(sc.cutouts), 'photo')}"
+                         + (f"  ·  {unsure} to check" if unsure else ""),
+                         font=ctk.CTkFont(weight="bold"), anchor="w").pack(fill="x", padx=12, pady=(8, 4))
+            row = ctk.CTkFrame(card, fg_color="transparent")
+            row.pack(fill="x", padx=12, pady=(0, 10))
+            try:
+                im = self._thumb(sc.orig_path, (220, 170))
+                self._thumbs.append(im)
+                ctk.CTkLabel(row, image=im, text="").pack(side="left")
+            except Exception:
+                ctk.CTkLabel(row, text="(original not available)", text_color=MUTED, width=220).pack(side="left")
+            ctk.CTkLabel(row, text="→", font=ctk.CTkFont(size=22)).pack(side="left", padx=10)
+            strip = ctk.CTkFrame(row, fg_color="transparent")
+            strip.pack(side="left", fill="x")
+            for _aid, idx, dname, check in sc.cutouts:
+                cell = ctk.CTkFrame(strip, fg_color="transparent")
+                cell.pack(side="left", padx=4)
+                try:
+                    im = self._thumb(str(derived / dname), (130, 130))
+                    self._thumbs.append(im)
+                    ctk.CTkLabel(cell, image=im, text="").pack()
+                except Exception:
+                    ctk.CTkLabel(cell, text="missing", text_color=AMBER).pack()
+                ctk.CTkLabel(cell, text=f"{letter(idx)}  ·  check this cut" if check else letter(idx),
+                             text_color=AMBER if check else MUTED).pack()
+        if total == 0:
+            ctk.CTkLabel(b, text="No multi-photo scans found yet. Run first, or check that the scans are in "
+                                 "one of your photo folders.", text_color=MUTED, anchor="w").pack(fill="x", pady=20)
+        bar = self._footer(back=("Home", self.show_home))
+        if pages > 1:
+            ctk.CTkButton(bar, text="Next page  →", width=130,
+                          command=lambda: self.show_scans(page + 1),
+                          state="normal" if page < pages - 1 else "disabled").pack(side="right", padx=(8, 0))
+            ctk.CTkLabel(bar, text=f"Page {page + 1} of {pages}", text_color=MUTED).pack(side="right", padx=8)
+            ctk.CTkButton(bar, text="←  Previous", width=130, command=lambda: self.show_scans(page - 1),
+                          state="normal" if page > 0 else "disabled").pack(side="right")
+            self.bind("<Right>", lambda e: self.show_scans(page + 1) if page < pages - 1 else None)
+            self.bind("<Left>", lambda e: self.show_scans(page - 1) if page > 0 else None)
+        if total:
+            ctk.CTkButton(bar, text="Save as files…", width=150, command=self._export_cutouts
+                          ).pack(side="left", padx=(12, 0))
+
+    def _export_cutouts(self):
+        from ..cutouts import EXPORT_FOLDER, export_cutouts
+        from ..system import open_folder
+        dest = str(self.paths.data / EXPORT_FOLDER)
+        cat = Catalog(self.paths.catalog)
+        try:
+            n, folder = export_cutouts(cat, str(self.paths.data / "derived"), dest)
+        except Exception as e:
+            self.error(e)
+            return
+        finally:
+            cat.close()
+        open_folder(folder)
+        self.error(UserError(f"Saved {plural(n, 'cut-out photo')} as files.",
+                             f"They're in {folder}, named after each scan (_a, _b, _c …). "
+                             "This is a copy for checking; your originals are untouched."), title="Saved")
+
     def show_restore(self, result=None):
         b = self._screen("Get something back", nav="restore", subtitle=
                          "Put originals back exactly where they were, from your verified backups. "

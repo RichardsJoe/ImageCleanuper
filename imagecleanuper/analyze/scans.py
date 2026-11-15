@@ -29,6 +29,7 @@ class ScanCheck:
 class Box:
     corners: np.ndarray   # 4x2 float32, in full-image pixel coordinates
     confidence: float
+    angle: float = 0.0    # tilt in degrees, normalised to -45..45
 
 
 def _work_size(img: Image.Image, longest: int = 1200) -> tuple[np.ndarray, float]:
@@ -84,12 +85,13 @@ def detect_scan(img: Image.Image, info: ImageInfo) -> ScanCheck:
 
 def find_photos_on_scan(img: Image.Image, min_area_share: float = 0.05) -> list[Box]:
     """Find separate prints on one scan. Returns boxes in full-resolution coordinates."""
-    rgb, scale = _work_size(img)
+    rgb, scale = _work_size(img, 1800)
     mask, _ = _background_mask(rgb)
     fg = (~mask).astype(np.uint8) * 255
-    k = max(3, (min(rgb.shape[:2]) // 150) | 1)
-    fg = cv2.morphologyEx(fg, cv2.MORPH_CLOSE, np.ones((k, k), np.uint8), iterations=2)
-    fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN, np.ones((k, k), np.uint8), iterations=1)
+    # Light clean-up only: heavy smoothing bridges the narrow gap between prints laid close together.
+    fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8), iterations=1)   # remove dust specks
+    fg = cv2.morphologyEx(fg, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8), iterations=1)  # mend tiny nicks
+    fg = _cut_background_strips(fg, mask)
     contours, _ = cv2.findContours(fg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     area_total = rgb.shape[0] * rgb.shape[1]
     boxes: list[Box] = []
@@ -105,12 +107,61 @@ def find_photos_on_scan(img: Image.Image, min_area_share: float = 0.05) -> list[
         if rectangularity < 0.80:
             continue  # not print-shaped (e.g. two touching prints or a torn edge)
         corners = cv2.boxPoints(rect).astype(np.float32) / scale
-        boxes.append(Box(corners, float(min(0.99, rectangularity))))
+        tilt = ((rect[2] + 45) % 90) - 45
+        boxes.append(Box(corners, float(min(0.99, rectangularity)), float(tilt)))
     if len(boxes) == 1 and cv2.contourArea(boxes[0].corners) * scale * scale > 0.85 * area_total:
         return []  # the whole scan is one print
+    _flag_suspicious_pairs(boxes)
     # Reading order: top to bottom, then left to right (stable names a, b, c).
     boxes.sort(key=lambda b: (round(b.corners[:, 1].min() / (img.height / 4)), b.corners[:, 0].min()))
     return boxes
+
+
+AMBIGUOUS_CUT = 0.7
+
+
+def _flag_suspicious_pairs(boxes: list[Box]) -> None:
+    """Two 'prints' that line up perfectly with a narrow strip between them might really be ONE
+    print with a washed-out band across it. The picture alone can't tell, so lower the
+    confidence: these cuts go to review ("Was this scan cut out correctly?") instead of being trusted."""
+    def bbox(b: Box):
+        xs, ys = b.corners[:, 0], b.corners[:, 1]
+        return xs.min(), ys.min(), xs.max(), ys.max()
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            a, c = bbox(boxes[i]), bbox(boxes[j])
+            w = max(a[2] - a[0], c[2] - c[0])
+            h = max(a[3] - a[1], c[3] - c[1])
+            same_cols = abs(a[0] - c[0]) < 0.01 * w and abs(a[2] - c[2]) < 0.01 * w
+            same_rows = abs(a[1] - c[1]) < 0.01 * h and abs(a[3] - c[3]) < 0.01 * h
+            v_gap = max(a[1], c[1]) - min(a[3], c[3])
+            h_gap = max(a[0], c[0]) - min(a[2], c[2])
+            same_tilt = abs(boxes[i].angle - boxes[j].angle) < 0.5
+            if same_tilt and ((same_cols and 0 <= v_gap < 0.35 * h) or (same_rows and 0 <= h_gap < 0.35 * w)):
+                boxes[i].confidence = min(boxes[i].confidence, AMBIGUOUS_CUT)
+                boxes[j].confidence = min(boxes[j].confidence, AMBIGUOUS_CUT)
+
+
+def _cut_background_strips(fg: np.ndarray, bg_mask: np.ndarray, min_share: float = 0.97) -> np.ndarray:
+    """Where a straight strip of scanner bed runs right through a blob (two prints almost
+    touching), clear it so the blob splits in two."""
+    out = fg.copy()
+    n, labels, stats, _ = cv2.connectedComponentsWithStats((fg > 0).astype(np.uint8))
+    for i in range(1, n):
+        x, y, w, h, area = stats[i]
+        if area < 0.02 * fg.size or w < 20 or h < 20:
+            continue
+        region = bg_mask[y:y + h, x:x + w]
+        cols = region.mean(axis=0) >= min_share   # columns that are (almost) all background
+        rows = region.mean(axis=1) >= min_share
+        margin_w, margin_h = int(w * 0.1), int(h * 0.1)   # ignore the blob's own ragged edges
+        for j in np.nonzero(cols)[0]:
+            if margin_w <= j < w - margin_w:
+                out[y:y + h, x + j] = 0
+        for j in np.nonzero(rows)[0]:
+            if margin_h <= j < h - margin_h:
+                out[y + j, x:x + w] = 0
+    return out
 
 
 def _order_corners(pts: np.ndarray) -> np.ndarray:
