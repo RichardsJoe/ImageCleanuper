@@ -26,6 +26,17 @@ flowchart LR
 
 **The rule that keeps it simple:** the Home screen always shows **one Next step** with one big button. You can always just press **Enter** and the app takes you to the right place.
 
+## Layout rules (every screen)
+
+Every screen is built from the same four parts, so nothing is ever a dead end:
+
+1. **Nav bar on the left** (all main screens): Home · Run (R) · Review (V) · Report (P) · Finish (F) · Restore · Settings. The current page is highlighted; Review shows how many items are waiting. While a run is working, the other pages are greyed out until you pause it. First launch, setup and pop-ups have no nav bar.
+2. **Title + one line** saying what the screen is for.
+3. **Middle area** that scrolls when it doesn't fit; nothing important is ever pushed off-screen.
+4. **Footer pinned to the bottom:** secondary action (Back / Not yet / Cancel, Esc) on the left, the main action (Enter) on the right, and a hotkey line.
+
+Screens are built exactly as drawn here. A screen that isn't in this document isn't built until it's added here first.
+
 ## Walkthrough
 
 ### 1. First launch
@@ -74,7 +85,7 @@ Totals, a folder tree with thumbnails, a "Needs attention" list with buttons, an
 ![Report](wireframes/12-report.svg)
 
 ### 9. Home
-The Next step, the four main actions, what's waiting for you, and the accuracy scorecard.
+The Next step, what's waiting for you, the accuracy scorecard, and when the last run finished. (The main actions live in the nav bar.)
 
 ![Home](wireframes/05-home.svg)
 
@@ -125,3 +136,4 @@ What makes it easy to follow from start to finish:
 1. 2026-11-14 · v1: First wireframe set (13 screens) and screen flow.
 2. 2026-11-14 · v2: Scans-folder option removed (scans found automatically); Add Google Photos screen.
 3. 2026-11-14 · v3: Spending-limit popup.
+4. 2026-11-15 · v4: Nav bar on every main screen; Home simplified (no duplicate action tiles, last run shows date/time, no run number); layout rules written down.
