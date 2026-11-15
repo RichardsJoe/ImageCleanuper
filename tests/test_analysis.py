@@ -199,11 +199,12 @@ def test_exact_copies_analyzed_once(env, monkeypatch):
     save_jpeg(img, m1 / "a.jpg", date="2020:01:01 10:00:00")
     (m2 / "deep").mkdir()
     (m2 / "deep" / "IMG_20200101_000000.jpg").write_bytes((m1 / "a.jpg").read_bytes())
+    from imagecleanuper.analyze import run as analyze_run
     calls = []
-    real = imageio.open_image
-    monkeypatch.setattr(imageio, "open_image", lambda p: (calls.append(p), real(p))[1])
+    real = analyze_run.analyze_file
+    monkeypatch.setattr(analyze_run, "analyze_file", lambda *a, **k: (calls.append(a[1]["rel_path"]), real(*a, **k))[1])
     cat, _ = run(paths, s)
-    assert len(calls) == 1
+    assert len(calls) == 1                                   # the copy reuses the first file's results
     assert cat.scalar("SELECT COUNT(*) FROM assets") == 2
 
 
@@ -312,8 +313,8 @@ def test_files_analyzed_by_older_rules_are_redone(env, monkeypatch):
     save_jpeg(scene(300), m1 / "a.jpg", date="2020:01:01 10:00:00", make="Apple")
     run(paths, s)
     calls = []
-    real = imageio.open_image
-    monkeypatch.setattr(imageio, "open_image", lambda p: (calls.append(p), real(p))[1])
+    real = analyze_run.analyze_file
+    monkeypatch.setattr(analyze_run, "analyze_file", lambda *a, **k: (calls.append(a[1]["rel_path"]), real(*a, **k))[1])
     run(paths, s)
     assert calls == []                        # same rules: nothing redone
     monkeypatch.setattr(analyze_run, "ANALYSIS_VERSION", analyze_run.ANALYSIS_VERSION + 1)

@@ -45,6 +45,7 @@ class Item:
     file_id: int
     rotation: int
     suggested: int = 0      # suggested extra rotation (counter-clockwise degrees) for "rotation"
+    check_key: str = ""     # for "content": pet | junk | cat:<key>
 
 
 def _question(r) -> str:
@@ -55,8 +56,17 @@ def _question(r) -> str:
     return "cutout" if r["kind"] == "cutout" else "trim"
 
 
-def queue(cat: Catalog, derived_dir: str) -> list[Item]:
-    """Items still waiting for an answer, in folder order."""
+def _content_title(key: str, folder: str) -> tuple[str, str]:
+    if key == "pet":
+        return "Is this a pet?", "The image model thinks there may be a pet in this photo. Yes files it under Pets."
+    if key == "junk":
+        return "Is this junk?", ("It may be a screenshot, meme or accidental photo. Yes moves it to _Junk "
+                                 "(nothing is deleted); No keeps it with your photos.")
+    return f"Does this belong in {folder}?", f"The image model thinks this may be a {folder} photo. Yes adds it there."
+
+
+def queue(cat: Catalog, derived_dir: str, categories: dict | None = None) -> list[Item]:
+    """Items still waiting for an answer, in folder order: fixes first, then pets/categories/junk."""
     rows = cat.q(
         """
         SELECT a.id, a.kind, a.derived_path, a.file_id, f.orig_path, f.rel_path, x.trim_box, x.rotation,
@@ -73,12 +83,24 @@ def queue(cat: Catalog, derived_dir: str) -> list[Item]:
         out.append(Item(r["id"], q, title, sub, r["orig_path"],
                         os.path.join(derived_dir, r["derived_path"]) if r["derived_path"] else None,
                         box, r["kind"], r["file_id"], r["rotation"] or 0, r["rotation_suggested"] or 0))
+    for r in cat.q("""SELECT p.asset_id, p.check_key, a.kind, a.derived_path, a.file_id, f.orig_path
+                      FROM predictions p JOIN assets a ON a.id = p.asset_id JOIN active_files f ON f.id = a.file_id
+                      WHERE p.status = 'review' ORDER BY p.check_key, f.rel_path, a.cutout_index"""):
+        key = r["check_key"]
+        folder = (categories or {}).get(key.split(":", 1)[-1], (key.split(":", 1)[-1].title(), ""))[0]
+        title, sub = _content_title(key, folder)
+        out.append(Item(r["asset_id"], "content", title, sub, r["orig_path"],
+                        os.path.join(derived_dir, r["derived_path"]) if r["derived_path"] else None,
+                        None, r["kind"], r["file_id"], 0, 0, key))
     return out
 
 
 def count(cat: Catalog) -> int:
-    return cat.scalar("SELECT COUNT(*) FROM fixes x JOIN assets a ON a.id = x.asset_id "
-                      "JOIN active_files f ON f.id = a.file_id WHERE x.status = 'review'") or 0
+    fixes = cat.scalar("SELECT COUNT(*) FROM fixes x JOIN assets a ON a.id = x.asset_id "
+                       "JOIN active_files f ON f.id = a.file_id WHERE x.status = 'review'") or 0
+    content = cat.scalar("SELECT COUNT(*) FROM predictions p JOIN assets a ON a.id = p.asset_id "
+                         "JOIN active_files f ON f.id = a.file_id WHERE p.status = 'review'") or 0
+    return fixes + content
 
 
 # ---- rendering a whole photo from its original + current fixes ----------------------
@@ -135,6 +157,9 @@ def _state(cat: Catalog, asset_id: int) -> dict:
 def answer(cat: Catalog, item: Item, value: str, derived_dir: str) -> int:
     """Apply an answer and save it. Returns the answer id."""
     assert value in ("looks_good", "undo", "rotate"), value
+    if item.question == "content":   # Yes / No
+        from . import content
+        return content.answer(cat, item.asset_id, item.check_key, value == "looks_good")
     prev = _state(cat, item.asset_id)
     with cat.tx():
         if value == "rotate":
@@ -170,8 +195,13 @@ def answer(cat: Catalog, item: Item, value: str, derived_dir: str) -> int:
 
 
 def undo_last(cat: Catalog, derived_dir: str) -> int | None:
-    """Ctrl+Z: take back the most recent answer. Returns the asset id it applied to, or None."""
+    """Ctrl+Z: take back the most recent answer (fix or pet/category). Returns the asset id, or None."""
     r = cat.one("SELECT * FROM answers WHERE undone=0 ORDER BY id DESC LIMIT 1")
+    c = cat.one("SELECT * FROM content_answers WHERE undone=0 ORDER BY id DESC LIMIT 1")
+    if c and (not r or c["created_at"] >= r["created_at"]):
+        from . import content
+        content.undo_last(cat)
+        return c["asset_id"]
     if not r:
         return None
     prev = json.loads(r["prev"])

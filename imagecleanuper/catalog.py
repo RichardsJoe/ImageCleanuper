@@ -178,6 +178,81 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE fixes ADD COLUMN rotation_suggested INTEGER NOT NULL DEFAULT 0;
     """,
+    # 7: phase 3 - faces, people, strangers, CLIP fingerprints
+    """
+    ALTER TABLE assets ADD COLUMN ai_version INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE hashes ADD COLUMN clip BLOB;
+    CREATE TABLE people (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        created_at REAL NOT NULL,
+        merged_into INTEGER REFERENCES people(id)
+    );
+    CREATE TABLE strangers (
+        id INTEGER PRIMARY KEY,
+        label TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    CREATE TABLE faces (
+        id INTEGER PRIMARY KEY,
+        asset_id INTEGER NOT NULL REFERENCES assets(id),
+        x INTEGER, y INTEGER, w INTEGER, h INTEGER,
+        score REAL,
+        embedding BLOB NOT NULL,
+        crop_path TEXT,
+        person_id INTEGER REFERENCES people(id),
+        stranger_id INTEGER REFERENCES strangers(id),
+        match_score REAL,
+        source TEXT,                      -- model | user
+        locked INTEGER NOT NULL DEFAULT 0,
+        best INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX faces_asset ON faces(asset_id);
+    CREATE INDEX faces_person ON faces(person_id);
+    CREATE TABLE face_answers (
+        id INTEGER PRIMARY KEY,
+        action TEXT NOT NULL,             -- name | stranger
+        face_ids TEXT NOT NULL,           -- JSON list
+        prev TEXT NOT NULL,               -- JSON {face_id: [person_id, stranger_id, locked, source]}
+        created_person INTEGER,
+        created_stranger INTEGER,
+        created_at REAL NOT NULL,
+        undone INTEGER NOT NULL DEFAULT 0
+    );
+    """,
+    # 8: pets, categories and junk (CLIP), and the answers that teach them
+    """
+    CREATE TABLE predictions (
+        asset_id INTEGER NOT NULL REFERENCES assets(id),
+        check_key TEXT NOT NULL,          -- pet | junk | cat:<key>
+        prob REAL NOT NULL,               -- 0..1
+        status TEXT NOT NULL,             -- yes | no | review
+        PRIMARY KEY (asset_id, check_key)
+    );
+    CREATE TABLE content_answers (
+        id INTEGER PRIMARY KEY,
+        asset_id INTEGER REFERENCES assets(id),      -- NULL while the photo is being re-analyzed
+        content_key TEXT NOT NULL,                   -- file fingerprint + cut-out position (survives re-analysis)
+        check_key TEXT NOT NULL,
+        value INTEGER NOT NULL,           -- 1 yes, 0 no
+        best INTEGER NOT NULL DEFAULT 0,
+        created_at REAL NOT NULL,
+        undone INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX content_answers_asset ON content_answers(asset_id, check_key);
+    """,
+    # 9: what the user taught survives re-analysis (photo records are rebuilt then)
+    """
+    CREATE TABLE face_refs (
+        id INTEGER PRIMARY KEY,
+        person_id INTEGER REFERENCES people(id),
+        stranger_id INTEGER REFERENCES strangers(id),
+        embedding BLOB NOT NULL,
+        best INTEGER NOT NULL DEFAULT 0,
+        answer_id INTEGER,                -- face_answers row that created it (for Ctrl+Z)
+        created_at REAL NOT NULL
+    );
+    """,
 ]
 
 

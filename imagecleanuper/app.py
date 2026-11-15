@@ -12,7 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import backup, compare, dates, discover, learned, log, plan, settings as settings_mod
+from . import backup, compare, content, dates, discover, learned, log, people, plan, settings as settings_mod
+from .ai import pass_ as ai_pass
 from .analyze import run as analyze_run
 from .catalog import Catalog, default_catalog_path
 from .log import UserError
@@ -147,6 +148,11 @@ class Runner:
                 cat.set_run(run_id, last_step="analyze")
                 counts["analyze"] = analyze_run.analyze_pending(cat, str(self.paths.data / "derived"), self._prog)
 
+                cat.set_run(run_id, last_step="ai")
+                counts["ai"] = ai_pass.run(cat, str(self.paths.data), self.settings.min_face_px, self._prog)
+                counts["people"] = people.match_all(cat)
+                counts["content"] = content.classify_all(cat, self.settings)
+
                 cat.set_run(run_id, last_step="compare")
                 self._prog("Comparing photos", 0, 0)
                 counts["compare"] = compare.compare_all(cat)
@@ -157,7 +163,7 @@ class Runner:
 
                 cat.set_run(run_id, last_step="plan")
                 self._prog("Planning", 0, 0)
-                counts["plan"] = plan.preview(cat, str(self.paths.data / "derived")).totals
+                counts["plan"] = plan.preview(cat, str(self.paths.data / "derived"), self.settings.categories).totals
 
                 # Phase 3+ steps go here: people, learning, sync ...
 

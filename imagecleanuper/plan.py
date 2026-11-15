@@ -1,7 +1,7 @@
 """Where every photo would go (pseudocode section 16). Phase 2: a read-only preview for the Report.
 
-Implemented now: year (or Unknown Date / Unknown Year), Holidays, Videos, Old Family Photos,
-_Duplicates, _Could Not Open, Other. People, Pets and categories are added in phase 3.
+Implemented: year (or Unknown Date / Unknown Year), Holidays, People, Pets, categories, Videos,
+Old Family Photos, _Junk, _Duplicates, _Could Not Open, Other.
 Nothing is copied or moved until phase 4 (Approve and sort).
 """
 
@@ -48,7 +48,7 @@ def _sort_key(path: str):
     return (special, order, path)
 
 
-def preview(cat: Catalog, derived_dir: str) -> Preview:
+def preview(cat: Catalog, derived_dir: str, categories: dict | None = None) -> Preview:
     rows = cat.q(
         """
         SELECT a.id, a.kind, a.cutout_index, a.derived_path, f.id AS file_id, f.orig_path, f.rel_path, f.kind AS fkind,
@@ -60,6 +60,15 @@ def preview(cat: Catalog, derived_dir: str) -> Preview:
         WHERE f.status = 'analyzed'
         ORDER BY f.rel_path, a.cutout_index
         """)
+    labels = {"pet": "Pets"}
+    labels.update({f"cat:{k}": v[0] for k, v in (categories or {}).items()})
+    content_of: dict[int, set] = defaultdict(set)
+    for p in cat.q("SELECT asset_id, check_key FROM predictions WHERE status='yes'"):
+        content_of[p["asset_id"]].add(p["check_key"])
+    people_of: dict[int, list[str]] = defaultdict(list)
+    for p in cat.q("""SELECT DISTINCT fc.asset_id, pe.name FROM faces fc JOIN people pe ON pe.id = fc.person_id
+                      WHERE pe.merged_into IS NULL ORDER BY pe.name"""):
+        people_of[p["asset_id"]].append(p["name"])
     folders: dict[str, list[Entry]] = defaultdict(list)
     totals = defaultdict(int)
     cut_wrong = {r["file_id"] for r in rows if r["kind"] == "cutout" and r["fix_status"] == "undone"}
@@ -80,6 +89,10 @@ def preview(cat: Catalog, derived_dir: str) -> Preview:
             folders["_Duplicates"].append(entry)
             totals["duplicates"] += 1
             continue
+        if "junk" in content_of.get(r["id"], ()):   # junk is exclusive and never in year folders
+            folders["_Junk"].append(entry)
+            totals["junk"] += 1
+            continue
         root = "Old Family Photos/" if r["is_scan"] else ""
         year = r["date"][:4] if r["date"] else ("Unknown Year" if r["is_scan"] else "Unknown Date")
         dests = []
@@ -89,6 +102,12 @@ def preview(cat: Catalog, derived_dir: str) -> Preview:
             if r["holiday"]:
                 name = HOLIDAY_NAMES.get(r["holiday"], r["holiday"].split(":", 1)[-1])
                 dests.append(f"{root}{year}/Holidays/{name}")
+            if entry.key.startswith("a"):
+                for person in people_of.get(r["id"], []):
+                    dests.append(f"{root}{year}/People/{person}")
+                for key in sorted(content_of.get(r["id"], ())):
+                    if key in labels:
+                        dests.append(f"{root}{year}/{labels[key]}")
             if not dests:
                 dests.append(f"{root}{year}/Other")
         for d in dests:
@@ -97,9 +116,8 @@ def preview(cat: Catalog, derived_dir: str) -> Preview:
     for r in cat.q("SELECT id, orig_path, rel_path FROM active_files WHERE status='could_not_open' ORDER BY rel_path"):
         folders["_Could Not Open"].append(Entry(f"f{r['id']}", os.path.basename(r["rel_path"]), None, r["orig_path"]))
         totals["could_not_open"] += 1
-    totals["need_review"] = cat.scalar(
-        "SELECT COUNT(*) FROM fixes x JOIN assets a ON a.id=x.asset_id JOIN active_files f ON f.id=a.file_id "
-        "WHERE x.status='review'") or 0
+    from .review import count as review_count
+    totals["need_review"] = review_count(cat)
     totals["guesses"] = cat.scalar(
         "SELECT COUNT(*) FROM dates d JOIN assets a ON a.id=d.asset_id JOIN active_files f ON f.id=a.file_id "
         "WHERE d.is_guess=1") or 0

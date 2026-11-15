@@ -80,8 +80,10 @@ def _clear_assets(cat: Catalog, file_id: int, derived_dir: str) -> None:
         shared = p and cat.scalar("SELECT COUNT(*) FROM assets WHERE derived_path=? AND id<>?", (p, aid))
         if p and derived_dir and not shared:
             remove_quietly(os.path.join(derived_dir, p))
-        for t in ("fixes", "meta", "hashes", "dates", "holidays", "dup_members"):
+        for t in ("fixes", "meta", "hashes", "dates", "holidays", "dup_members", "predictions", "faces", "answers"):
             cat.db.execute(f"DELETE FROM {t} WHERE asset_id=?", (aid,))
+        # Pet/category answers are kept (re-linked by content_key when the photo is rebuilt).
+        cat.db.execute("UPDATE content_answers SET asset_id=NULL WHERE asset_id=?", (aid,))
         cat.db.execute("DELETE FROM assets WHERE id=?", (aid,))
 
 

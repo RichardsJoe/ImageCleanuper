@@ -25,6 +25,14 @@ DEFAULT_HOLIDAY_WINDOWS = {
 }
 
 
+# What the image model looks for. Describe what's VISIBLE; your answers teach it after that.
+DEFAULT_CATEGORIES = {
+    "scenic": ("Scenic", "landscapes, sunsets, mountains, beaches, lakes, nature, city skylines, travel views"),
+    "projects": ("Projects", "home improvement, woodworking, tools and lumber, crafts, car repair, school or work "
+                             "projects, receipts and documents"),
+}
+
+
 @dataclass
 class Settings:
     library: str = ""
@@ -42,6 +50,7 @@ class Settings:
     holiday_windows: dict[str, tuple[int, int]] = field(
         default_factory=lambda: dict(DEFAULT_HOLIDAY_WINDOWS))
     custom_events: list[tuple[str, int, int, int, int]] = field(default_factory=list)  # name, month, day, before, after
+    categories: dict[str, tuple[str, str]] = field(default_factory=lambda: dict(DEFAULT_CATEGORIES))  # key: (folder, description)
     claude_enabled: bool = False
     claude_model: str = "claude-sonnet-5-5"
     claude_monthly_limit_usd: float = 5.0
@@ -121,6 +130,14 @@ def load(path: Path) -> tuple[Settings, list[str]]:
                 except ValueError:
                     problems.append(f"[Holidays] {k} should look like '2,2' (days before, after).")
     for sec in cp.sections():
+        if sec.lower().startswith("category:"):
+            key = sec.split(":", 1)[1].strip().lower()
+            desc = cp[sec].get("description", "").strip()
+            folder = cp[sec].get("folder", "").strip() or sec.split(":", 1)[1].strip().title()
+            if key and desc:
+                s.categories[key] = (folder, desc)
+            elif key:
+                problems.append(f"[{sec}] needs a description of what's in these photos.")
         if sec.lower().startswith("event:"):
             name = sec.split(":", 1)[1].strip()
             try:
@@ -231,6 +248,8 @@ def save(s: Settings, path: Path) -> None:
     cp["Holidays"] = {"country": s.holiday_country}
     for k, (b, a) in s.holiday_windows.items():
         cp["Holidays"][f"window.{k}"] = f"{b},{a}"
+    for key, (folder, desc) in s.categories.items():
+        cp[f"Category:{key}"] = {"folder": folder, "description": desc}
     for name, month, day, before, after in s.custom_events:
         cp[f"Event:{name}"] = {"month": str(month), "day": str(day), "window": f"{before},{after}"}
     cp["Claude"] = {"enabled": "yes" if s.claude_enabled else "no", "model": s.claude_model,

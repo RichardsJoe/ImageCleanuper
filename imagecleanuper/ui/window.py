@@ -65,8 +65,8 @@ class App(ctk.CTk):
         pinned to the bottom (so buttons are always visible, however small the window)."""
         if self.body is not None:
             self.body.destroy()
-        for seq in ("<Return>", "<Escape>", "<Key-r>", "<Key-a>", "<Key-u>", "<space>", "<Left>", "<Right>",
-                    "<Control-z>"):
+        for seq in ("<Return>", "<Escape>", "<Key-r>", "<Key-a>", "<Key-u>", "<Key-s>", "<Key-n>", "<space>",
+                    "<Left>", "<Right>", "<Control-z>"):
             self.unbind(seq)
         self._images = []
         self.body = ctk.CTkFrame(self, fg_color="transparent")
@@ -394,6 +394,11 @@ class App(ctk.CTk):
                     img = img.crop(crop[1])
                 if crop and crop[0] == "rotate":
                     img = img.rotate(crop[1], expand=True)
+                if crop and crop[0] == "circle":   # circle the face being asked about
+                    x, y, w, h = crop[1]
+                    pad = max(w, h) * 0.35
+                    ImageDraw.Draw(img).ellipse([x - pad, y - pad, x + w + pad, y + h + pad], outline=(47, 111, 219),
+                                                width=max(4, int(max(img.size) / 150)))
                 scale = min(box[0] / img.width, box[1] / img.height, 1.0)
                 if crop and crop[0] == "outline":   # draw the proposed trim on the original
                     x0, y0, x1, y1 = crop[1]
@@ -428,11 +433,14 @@ class App(ctk.CTk):
         if self.paths.catalog.exists():
             cat = Catalog(self.paths.catalog)
             try:
-                info["review"] = review_mod.count(cat)
+                from .. import people as people_mod
+                info["fixes"] = review_mod.count(cat)
+                info["who"] = len(people_mod.groups(cat, limit=self.settings.people_per_round))
+                info["review"] = info["fixes"] + info["who"]
             finally:
                 cat.close()
         else:
-            info["review"] = 0
+            info["review"] = info["fixes"] = info["who"] = 0
         return info
 
     # ---- home (wireframe 05) ----------------------------------------------------
@@ -446,6 +454,9 @@ class App(ctk.CTk):
                     "and old scans.", "Start run", self.start_run)
         if last["state"] in ("crashed", "stopped"):
             return ("Continue the last run", "It stopped early. Nothing was lost.", "Continue", self.start_run)
+        if info.get("who"):
+            return (f"Name {info['who']:,} {'person' if info['who'] == 1 else 'people'} the app found",
+                    "One person at a time: type a name, or press Stranger.", "Start review", self.show_review)
         if info.get("review"):
             return (f"Review {plural(info['review'], 'photo')} the app wasn't sure about",
                     "Then run again so it learns from your answers.", "Start review", self.show_review)
@@ -475,14 +486,16 @@ class App(ctk.CTk):
                      anchor="w").pack(fill="x")
         chips = ctk.CTkFrame(b, fg_color="transparent")
         chips.pack(fill="x", pady=(4, 16))
-        if info["review"]:
-            ctk.CTkButton(chips, text=f"Needs review   {info['review']:,}", corner_radius=16, height=32,
-                          fg_color="transparent", border_width=1, border_color=("gray70", "gray40"),
-                          text_color=("gray15", "gray90"), command=self.show_review).pack(side="left")
-        else:
+        shown = False
+        for label, n, cmd in (("Who is this?", info.get("who", 0), self.show_review),
+                              ("Needs review", info.get("fixes", 0), lambda: self.show_review(skip_people=True))):
+            if n:
+                shown = True
+                ctk.CTkButton(chips, text=f"{label}   {n:,}", corner_radius=16, height=32,
+                              fg_color="transparent", border_width=1, border_color=("gray70", "gray40"),
+                              text_color=("gray15", "gray90"), command=cmd).pack(side="left", padx=(0, 8))
+        if not shown:
             ctk.CTkLabel(chips, text="Nothing waiting.", text_color=MUTED).pack(side="left")
-        ctk.CTkLabel(chips, text="   Who is this?, Accuracy check, Duplicates and Junk arrive with phase 3.",
-                     text_color=MUTED, font=ctk.CTkFont(size=12)).pack(side="left")
 
         ctk.CTkLabel(b, text="Accuracy scorecard   (target 95%)", font=ctk.CTkFont(size=15, weight="bold"),
                      anchor="w").pack(fill="x")
@@ -519,7 +532,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(win, text="Pick up where you left off?", font=ctk.CTkFont(size=18, weight="bold")
                      ).pack(padx=24, pady=(24, 6), anchor="w")
         step = {"discover": "finding photos", "backup": "backing up", "analyze": "looking at photos",
-                "compare": "comparing photos", "dates": "working out dates", "plan": "planning",
+                "ai": "finding faces", "compare": "comparing photos", "dates": "working out dates", "plan": "planning",
                 "learned_backup": "saving what it learned"}.get(r.get("last_step") or "", "starting")
         ctk.CTkLabel(win, text=f"The last run stopped while {step}. Nothing was lost: the backup and every "
                                "photo already looked at are saved.", wraplength=470, justify="left"
@@ -537,6 +550,7 @@ class App(ctk.CTk):
     # ---- running (wireframe 06) -------------------------------------------------
     STAGES = (("backup", "Back up"), ("analyze", "Analyze"), ("compare", "Compare & dates"), ("plan", "Plan"))
     STAGE_OF = {"Finding photos": "backup", "Backing up": "backup", "Looking at photos": "analyze",
+                "Finding faces": "analyze",
                 "Comparing photos": "compare", "Working out dates and holidays": "compare", "Planning": "plan"}
 
     def start_run(self):
@@ -637,11 +651,23 @@ class App(ctk.CTk):
         self.after(100, self._poll)
 
     # ---- needs review (wireframe 09) ---------------------------------------------
-    def show_review(self, index: int = 0):
+    def show_review(self, index: int = 0, skip_people: bool = False):
+        """The review queue in wireframe order: Who is this? first, then Needs review."""
+        if not skip_people and self.paths.catalog.exists():
+            from .. import people as people_mod
+            c = Catalog(self.paths.catalog)
+            try:
+                waiting = people_mod.groups(c, limit=self.settings.people_per_round)
+            finally:
+                c.close()
+            if waiting and index < len(waiting):
+                return self.show_who(index, waiting)
+            if waiting:
+                index = 0   # skipped past the last person: Needs review starts at its first item
         from .. import review as review_mod
         derived = str(self.paths.data / "derived")
         cat = Catalog(self.paths.catalog) if self.paths.catalog.exists() else None
-        items = review_mod.queue(cat, derived) if cat else []
+        items = review_mod.queue(cat, derived, self.settings.categories) if cat else []
         if cat:
             cat.close()
         if not items:
@@ -654,7 +680,7 @@ class App(ctk.CTk):
             return
         index = max(0, min(index, len(items) - 1))
         it = items[index]
-        b = self._screen(it.title, nav="review", review_count=len(items),
+        b = self._screen(it.title, nav="review",
                          subtitle=f"{it.subtitle}      {index + 1} of {len(items)}")
         self._images = []
         pair = ctk.CTkFrame(b, fg_color="transparent")
@@ -664,11 +690,14 @@ class App(ctk.CTk):
         left.pack(side="left", padx=(0, 24))
         right = ctk.CTkFrame(pair, fg_color="transparent")
         right.pack(side="left")
-        ctk.CTkLabel(left, text="Before", text_color=MUTED, font=ctk.CTkFont(weight="bold"), anchor="w"
-                     ).pack(fill="x")
+        ctk.CTkLabel(left, text="The photo" if it.question == "content" else "Before", text_color=MUTED,
+                     font=ctk.CTkFont(weight="bold"), anchor="w").pack(fill="x")
         ctk.CTkLabel(right, text="After", text_color=MUTED, font=ctk.CTkFont(weight="bold"), anchor="w"
                      ).pack(fill="x")
-        if it.question == "rotation":
+        if it.question == "content":
+            self._image_box(left, it.derived or it.original, (420, 320), "").pack()
+            right.destroy()
+        elif it.question == "rotation":
             current = it.derived or it.original
             self._image_box(left, current, size, "as it is now").pack()
             self._image_box(right, current, size, "turned the suggested way", crop=("rotate", it.suggested)).pack()
@@ -696,27 +725,180 @@ class App(ctk.CTk):
             finally:
                 c.close()
             self.show_review(index if value != "rotate" else index)
-        undo_label = {"trim": "Undo fix", "rotation": "Leave as is"}.get(it.question, "Cut wrong: keep whole scan")
+        undo_label = {"trim": "Undo fix", "rotation": "Leave as is", "content": "No"}.get(
+            it.question, "Cut wrong: keep whole scan")
+        accept_label = "Yes" if it.question == "content" else "Accept change"
         ctk.CTkButton(self.footer_area, text=f"{undo_label}  (U)", fg_color="transparent", border_width=1,
                       border_color="#c0392b", text_color="#c0392b", command=lambda: act("undo"),
                       width=200).pack(side="left")
-        ctk.CTkButton(self.footer_area, text="Rotate again  (R)", fg_color="transparent", border_width=1,
-                      text_color=("gray15", "gray90"), command=lambda: act("rotate"), width=160
-                      ).pack(side="left", padx=8)
-        ctk.CTkButton(self.footer_area, text="Accept change  (Enter)", fg_color=BLUE, height=38, width=190,
+        if it.question != "content":
+            ctk.CTkButton(self.footer_area, text="Rotate again  (R)", fg_color="transparent", border_width=1,
+                          text_color=("gray15", "gray90"), command=lambda: act("rotate"), width=160
+                          ).pack(side="left", padx=8)
+            self.bind("<Key-r>", self._not_typing(lambda: act("rotate")))
+        ctk.CTkButton(self.footer_area, text=f"{accept_label}  (Enter)", fg_color=BLUE, height=38, width=190,
                       command=lambda: act("looks_good")).pack(side="right")
         ctk.CTkButton(self.footer_area, text="Skip  →", fg_color="transparent", width=90,
                       text_color=("gray30", "gray80"), command=lambda: self.show_review(index + 1)
                       ).pack(side="right", padx=8)
         self.bind("<Return>", lambda e: act("looks_good"))
         self.bind("<Key-u>", self._not_typing(lambda: act("undo")))
-        self.bind("<Key-r>", self._not_typing(lambda: act("rotate")))
         self.bind("<Right>", lambda e: self.show_review(index + 1))
         self.bind("<Left>", lambda e: self.show_review(index - 1))
         self.bind("<Escape>", lambda e: self.show_home())
         self.bind("<Control-z>", lambda e: self._review_undo(index))
-        self._hotkey_line(f"Enter Accept change · R Rotate again · U {undo_label} · → Skip · ← Back · "
-                          "Ctrl+Z Undo last answer · Esc Home (progress saved)")
+        self._hotkey_line(f"Enter {accept_label} · " + ("" if it.question == "content" else "R Rotate again · ")
+                          + f"U {undo_label} · → Skip · ← Back · Ctrl+Z Undo · Esc Home")
+
+    # ---- who is this? (wireframe 08) ----------------------------------------------
+    def show_who(self, index: int, groups=None):
+        from .. import people as people_mod
+        c = Catalog(self.paths.catalog)
+        try:
+            groups = groups or people_mod.groups(c, limit=self.settings.people_per_round)
+            if not groups:
+                return self.show_review(skip_people=True)
+            index = max(0, min(index, len(groups) - 1))
+            g = groups[index]
+            samples = []
+            for f in g.samples:
+                a = c.one("SELECT a.derived_path, fl.orig_path FROM assets a JOIN files fl ON fl.id=a.file_id "
+                          "WHERE a.id=?", (f["asset_id"],))
+                img = str(self.paths.data / "derived" / a["derived_path"]) if a["derived_path"] else a["orig_path"]
+                samples.append((f, img))
+        finally:
+            c.close()
+        total = len(groups)
+        b = self._screen("Who is this?", nav="review", review_count=None, subtitle=(
+            f"Seen in {plural(g.photos, 'photo')}. Type a name, or press Stranger if you don't know them."
+            f"      Person {index + 1} of {total}"))
+        faces_row = ctk.CTkFrame(b, fg_color="transparent")
+        faces_row.pack(fill="x", pady=(4, 8))
+        for f, _ in samples:
+            crop = str(self.paths.data / "faces" / f["crop_path"]) if f["crop_path"] else None
+            self._image_box(faces_row, crop, (96, 96)).pack(side="left", padx=(0, 10))
+        lower = ctk.CTkFrame(b, fg_color="transparent")
+        lower.pack(fill="x")
+        photos = ctk.CTkFrame(lower, fg_color="transparent")
+        photos.pack(side="left", anchor="n")
+        ctk.CTkLabel(photos, text="In the photo (the face asked about is circled):", text_color=MUTED,
+                     anchor="w").pack(fill="x")
+        prow = ctk.CTkFrame(photos, fg_color="transparent")
+        prow.pack(fill="x", pady=4)
+        for f, img in samples[:2]:
+            self._image_box(prow, img, (210, 150), crop=("circle", (f["x"], f["y"], f["w"], f["h"]))
+                            ).pack(side="left", padx=(0, 10))
+        form = ctk.CTkFrame(lower, fg_color="transparent")
+        form.pack(side="left", fill="x", expand=True, padx=(16, 0), anchor="n")
+        ctk.CTkLabel(form, text="Name  (N)", text_color=MUTED, anchor="w").pack(fill="x")
+        entry = ctk.CTkEntry(form, placeholder_text="e.g. Calvin")
+        entry.pack(fill="x")
+        sugg = ctk.CTkFrame(form, fg_color="transparent", height=1)
+        sugg.pack(fill="x")
+        hint = ctk.CTkLabel(form, text="Names are saved in proper case: joseph richards → Joseph Richards",
+                            text_color=MUTED, font=ctk.CTkFont(size=11), anchor="w", wraplength=300, justify="left")
+        hint.pack(fill="x", pady=(6, 0))
+
+        def refresh(_=None):
+            for w in sugg.winfo_children():
+                w.destroy()
+            c2 = Catalog(self.paths.catalog)
+            try:
+                for name in people_mod.suggestions(c2, entry.get()):
+                    ctk.CTkButton(sugg, text=name, anchor="w", height=26, fg_color="transparent",
+                                  text_color=BLUE, hover_color=("gray90", "gray25"),
+                                  command=lambda n=name: (entry.delete(0, "end"), entry.insert(0, n), refresh())
+                                  ).pack(fill="x")
+            finally:
+                c2.close()
+        entry.bind("<KeyRelease>", refresh)
+
+        def done(msg=None):
+            self.show_review(index)   # the next group slides into this position
+
+        def save():
+            typed = entry.get().strip()
+            if not typed:
+                hint.configure(text="Type a name first, or press Stranger.", text_color=AMBER)
+                return
+            c2 = Catalog(self.paths.catalog)
+            try:
+                close = people_mod.did_you_mean(c2, typed)
+            finally:
+                c2.close()
+            if close:
+                return self._confirm_name(close, typed, g.face_ids, done)
+            self._save_name(g.face_ids, typed)
+            done()
+
+        def stranger():
+            c2 = Catalog(self.paths.catalog)
+            try:
+                people_mod.mark_stranger(c2, g.face_ids)
+            finally:
+                c2.close()
+            done()
+
+        def undo():
+            c2 = Catalog(self.paths.catalog)
+            try:
+                people_mod.undo_last(c2)
+            finally:
+                c2.close()
+            self.show_review(index)
+        ctk.CTkButton(self.footer_area, text="Back  (←)", fg_color="transparent", border_width=1, width=110,
+                      text_color=("gray20", "gray85"), command=lambda: self.show_who(index - 1),
+                      state="normal" if index > 0 else "disabled").pack(side="left")
+        ctk.CTkButton(self.footer_area, text="Skip  (→)", fg_color="transparent", border_width=1, width=110,
+                      text_color=("gray20", "gray85"), command=lambda: self.show_review(index + 1)
+                      ).pack(side="left", padx=8)
+        ctk.CTkButton(self.footer_area, text="Save  (Enter)", fg_color=BLUE, height=38, width=170,
+                      command=save).pack(side="right")
+        ctk.CTkButton(self.footer_area, text="Stranger  (S)", fg_color="transparent", border_width=1, width=150,
+                      text_color=("gray15", "gray90"), command=stranger).pack(side="right", padx=8)
+        self.bind("<Return>", lambda e: save())
+        self.bind("<Key-s>", self._not_typing(stranger))
+        self.bind("<Key-n>", self._not_typing(lambda: entry.focus_set()))
+        self.bind("<Right>", self._not_typing(lambda: self.show_review(index + 1)))
+        self.bind("<Left>", self._not_typing(lambda: self.show_who(index - 1)))
+        self.bind("<Escape>", lambda e: self.show_home())
+        self.bind("<Control-z>", lambda e: undo())
+        self._hotkey_line("Enter Save · S Stranger · N Name box · → Skip · ← Back · Ctrl+Z Undo · "
+                          "Esc Home (progress saved)")
+
+    def _save_name(self, face_ids, typed):
+        from .. import people as people_mod
+        c = Catalog(self.paths.catalog)
+        try:
+            people_mod.name_group(c, face_ids, typed)
+        finally:
+            c.close()
+
+    def _confirm_name(self, existing, typed, face_ids, done):
+        from .. import people as people_mod
+        win = ctk.CTkToplevel(self)
+        win.title("Did you mean…?")
+        win.geometry("460x190")
+        win.transient(self)
+        new = people_mod.proper_case(typed)
+        ctk.CTkLabel(win, text=f"Did you mean {existing}?", font=ctk.CTkFont(size=17, weight="bold")
+                     ).pack(padx=24, pady=(22, 4), anchor="w")
+        ctk.CTkLabel(win, text=f"\"{new}\" is very close to a name you already used.", wraplength=410,
+                     justify="left").pack(padx=24, anchor="w")
+        bar = ctk.CTkFrame(win, fg_color="transparent")
+        bar.pack(side="bottom", fill="x", padx=24, pady=18)
+
+        def pick(name):
+            win.destroy()
+            self._save_name(face_ids, name)
+            done()
+        ctk.CTkButton(bar, text=f"No, add {new}", fg_color="transparent", border_width=1,
+                      text_color=("gray20", "gray85"), command=lambda: pick(new)).pack(side="left")
+        ctk.CTkButton(bar, text=f"Yes, {existing}  (Enter)", fg_color=BLUE, command=lambda: pick(existing)
+                      ).pack(side="right")
+        win.bind("<Return>", lambda e: pick(existing))
+        win.bind("<Escape>", lambda e: win.destroy())
+        win.after(50, win.grab_set)
 
     def _review_undo(self, index):
         from .. import review as rv
@@ -738,11 +920,11 @@ class App(ctk.CTk):
         else:
             cat = Catalog(self.paths.catalog)
             try:
-                pv = plan_mod.preview(cat, derived)
+                pv = plan_mod.preview(cat, derived, self.settings.categories)
             finally:
                 cat.close()
         info_review = pv.totals.get("need_review", 0)
-        b = self._screen("Here's the plan", nav="report", review_count=info_review)
+        b = self._screen("Here's the plan", nav="report")
         chips = ctk.CTkFrame(b, fg_color="transparent")
         chips.pack(fill="x", pady=(0, 8))
         for text, color in ((f"{pv.totals.get('sorted', 0):,} sorted", GREEN),

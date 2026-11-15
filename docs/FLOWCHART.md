@@ -139,7 +139,7 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 
 ### Analyzing
 - **Multi-photo scans are split.** Each photo is cut out, straightened and treated as its own image. The full scan is kept in `Old Family Photos\Original Scans`.
-- **Turning prints upright** (scans and cut-outs only): faces are checked in all four turns; clear answers rotate automatically, close calls are asked in Review ("Is this the right way up?"), no faces = left alone. In phase 3 the free local image model adds a second opinion for prints without clear faces (Claude is not used for rotation).
+- **Turning prints upright** (scans and cut-outs only): faces are checked in all four turns; clear answers rotate automatically, close calls are asked in Review ("Is this the right way up?"), no faces = left alone. (Tested in phase 3: the local image model, CLIP, could not tell which way up a print is, about chance level on real scans, so it is not used for rotation. Claude is not used either.)
 - **Rotation and border trim** (excess white or black background) only act when very sure. Uncertain cases go to Needs Review with before and after side by side: Accept change / Undo / Rotate again.
 - **Old scans are found automatically,** with no folder to point out: cut out of a multi-photo scan, made by a scanner (file info), or looking like a scanned print (paper borders, print texture, no camera info). They go to `Old Family Photos\`, with the same layout as the main library. Unsure cases go to Needs Review, and "Old scan?" is part of the accuracy check.
 - **Dates:** date taken (EXIF), then Google Photos' own date (for Google imports), then a date in the filename, then the date of a similar photo, then a folder-name clue (e.g. `Grandma 1985`), otherwise Unknown. The file's modified date is never used. Scanner dates are ignored.
@@ -187,6 +187,11 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **When the limit is reached** the app pops up a notice with the amount spent and how many unsure photos are left, and three choices: **continue with the free local models** (the rest go to Needs Review), **raise the limit** and keep using Claude, or **pause the run**. If nobody answers within 5 minutes, the run continues with the free local models, so an unattended run never stalls or overspends.
 - **Privacy:** photos sent to Claude go to Anthropic's servers. Everything else stays on the PC. The Settings screen says this plainly.
 - **Claude's answers are scored too:** the accuracy check measures how often Claude was right, and its answers feed the learning like yours.
+
+### Phase 3 as built
+- **Models bundled in the installer** (about 380 MB): YuNet face detector + SFace face recogniser (OpenCV Zoo) and CLIP ViT-B/32 (OpenAI) converted to ONNX, half precision, run through ONNX Runtime (DirectML on the GPU, CPU fallback). The repo is private, so its Releases can't serve public downloads; bundling avoids that. The GitHub build produces the model files itself (tools/export_models.py) and checks them.
+- **What you teach survives re-analysis:** named people and strangers are kept as face references, and Yes/No answers are tied to the photo's content fingerprint, not to database record numbers.
+- **Learning:** pets, categories and Junk start from CLIP comparing the photo with descriptions; after 10+ yes/no answers for a check, a small model trained on your answers is blended in (up to 80% weight as answers grow; best samples count 3x). People are recognised from every face you've named.
 
 ### Parked ideas (not in the current plan)
 - **Enhance old photos** (colour/fade correction, grain removal, sharpening). Tested on a real 1980s print: rule-based settings help colour; **Claude-guided settings** (Claude looks at each photo and picks the settings, local tools apply them, about a cent per photo) gave the best result. Claude can't edit images itself. Optional local AI models would remove grain far better. Parked until the rest of the app is working; would slot in after cut-out/rotate/trim with a Keep enhanced / Use original review question.
