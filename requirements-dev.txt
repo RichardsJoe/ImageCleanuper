@@ -1,2 +1,3 @@
 pytest==8.3.4
+# PyInstaller is installed from source in the GitHub build (see .github/workflows/build.yml)
 pyinstaller==6.11.1

@@ -23,7 +23,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install pytest==8.3.4
+
+      - name: Build PyInstaller from source (own launcher, fewer antivirus false positives)
+        # The prebuilt PyInstaller launcher is shared by many programs, including malware, so
+        # antivirus and Google Safe Browsing often flag anything built with it. Compiling the
+        # launcher here gives this app its own.
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: "1"
+        run: pip install --no-binary pyinstaller --no-cache-dir pyinstaller==6.11.1
 
       - name: Run tests
         run: python -m pytest -q -rs
@@ -66,6 +75,18 @@ jobs:
           if (-not (Test-Path $exe)) { throw "App was not installed to $exe" }
           if (Test-Path "C:\Program Files (x86)\ImageCleanuper") { throw "App was installed to Program Files (x86)" }
           Write-Host "Installed to $exe"
+
+      - name: Scan with Microsoft Defender (fail the build if anything is flagged)
+        run: |
+          $mp = "$env:ProgramFiles\Windows Defender\MpCmdRun.exe"
+          if (-not (Test-Path $mp)) { Write-Host "Defender not available on this machine; skipping"; exit 0 }
+          & $mp -SignatureUpdate | Out-Null
+          foreach ($target in @("dist\ImageCleanuper", (Get-ChildItem dist\ImageCleanuper-Setup-*.exe).FullName)) {
+            Write-Host "Scanning $target"
+            & $mp -Scan -ScanType 3 -File (Resolve-Path $target) -DisableRemediation
+            if ($LASTEXITCODE -eq 2) { throw "Microsoft Defender flagged $target" }
+            if ($LASTEXITCODE -ne 0) { Write-Host "Defender scan could not run (exit $LASTEXITCODE)" }
+          }
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
