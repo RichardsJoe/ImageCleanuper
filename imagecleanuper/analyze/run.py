@@ -21,8 +21,9 @@ TAG_ORIENTATION = 0x0112
 # Bump when analysis rules change so earlier results are redone on the next run.
 # 1 = 0.2.0-0.2.2, 2 = close prints separated (0.2.3), 3 = prints touching the scan edges (0.2.4),
 # 4 = lid found by edges + texture: light walls, Polaroid frames, tidy grids (0.2.5),
-# 5 = single prints cut out; blank cards ignored (0.2.6).
-ANALYSIS_VERSION = 5
+# 5 = single prints cut out; blank cards ignored (0.2.6),
+# 6 = proposed trims kept for review (0.3.0).
+ANALYSIS_VERSION = 6
 
 
 def pending(cat: Catalog) -> list:
@@ -43,7 +44,7 @@ def analyze_pending(cat: Catalog, derived_dir: str, progress: Progress | None = 
     counts = {"analyzed": 0, "could_not_open": 0, "cutouts": 0, "reused": 0}
     for i, f in enumerate(rows, 1):
         if progress:
-            progress("Looking at photos", i, len(rows))
+            progress("Looking at photos", i, len(rows), f["orig_path"])
         try:
             reused = _reuse_exact_copy(cat, f, derived_dir)
             if reused:
@@ -157,25 +158,26 @@ def _process(cat: Catalog, aid: int, img: Image.Image, info: imageio.ImageInfo, 
         status = "review"
         rot = 0  # cautious: don't rotate, ask instead
     trim = fix.find_border(img)
-    trim_box = None
-    if trim.box and trim.confidence >= fix.AUTO_TRIM:
+    trim_box = ",".join(map(str, trim.box)) if trim.box else None   # kept even when only proposed
+    trim_applied = bool(trim.box and trim.confidence >= fix.AUTO_TRIM)
+    if trim_applied:
         img = fix.apply_trim(img, trim)
-        trim_box = ",".join(map(str, trim.box))
         status = "auto" if status == "none" else status
     elif trim.box:
-        status = "review"
+        status = "review"   # not applied: the review screen asks "Did this fix look right?"
     if cut_conf is not None and cut_conf < 0.9:
         status = "review"
     derived = None
-    if force_derived or exif_rot or rot or trim_box:
+    if force_derived or exif_rot or rot or trim_applied:
         derived = f"{aid}.jpg"
         save_derived(img, info, os.path.join(derived_dir, derived))
     w, h = img.size
     cat.db.execute("UPDATE assets SET derived_path=?, width=?, height=? WHERE id=?", (derived, w, h, aid))
     cat.db.execute(
-        "INSERT INTO fixes(asset_id, exif_rotation, rotation, rotation_conf, trim_box, trim_conf, cut_conf, status) "
-        "VALUES (?,?,?,?,?,?,?,?)",
-        (aid, exif_rot, rot, rot_conf or None, trim_box, trim.confidence or None, cut_conf, status))
+        "INSERT INTO fixes(asset_id, exif_rotation, rotation, rotation_conf, trim_box, trim_conf, trim_applied, "
+        "cut_conf, status) VALUES (?,?,?,?,?,?,?,?,?)",
+        (aid, exif_rot, rot, rot_conf or None, trim_box, trim.confidence or None, int(trim_applied),
+         cut_conf, status))
     cat.db.execute(
         "INSERT INTO meta(asset_id, exif_date, exif_date_raw, camera_make, camera_model, software, filename_date, "
         "is_scan, scan_conf, scan_reason) VALUES (?,?,?,?,?,?,?,?,?,?)",

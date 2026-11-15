@@ -159,6 +159,21 @@ MIGRATIONS: list[str] = [
         SELECT f.* FROM files f JOIN sources s ON s.id = f.source_id
         WHERE s.enabled = 1 AND f.missing = 0;
     """,
+    # 5: review answers; proposed trims are kept (trim_applied says whether they were used)
+    """
+    ALTER TABLE fixes ADD COLUMN trim_applied INTEGER NOT NULL DEFAULT 0;
+    UPDATE fixes SET trim_applied = 1 WHERE trim_box IS NOT NULL;
+    CREATE TABLE answers (
+        id INTEGER PRIMARY KEY,
+        asset_id INTEGER NOT NULL REFERENCES assets(id),
+        question TEXT NOT NULL,        -- trim | cutout | rotation
+        value TEXT NOT NULL,           -- looks_good | undo | rotate
+        prev TEXT NOT NULL,            -- JSON of the fix before this answer (for Ctrl+Z)
+        created_at REAL NOT NULL,
+        undone INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX answers_asset ON answers(asset_id);
+    """,
 ]
 
 

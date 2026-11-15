@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import backup, compare, dates, discover, learned, log, settings as settings_mod
+from . import backup, compare, dates, discover, learned, log, plan, settings as settings_mod
 from .analyze import run as analyze_run
 from .catalog import Catalog, default_catalog_path
 from .log import UserError
@@ -113,9 +113,12 @@ class Runner:
         if self.cancel_event.is_set():
             raise Cancelled()
 
-    def _prog(self, label: str, done: int, total: int) -> None:
+    def _prog(self, label: str, done: int, total: int, detail: str | None = None) -> None:
         self._check_cancel()
-        self.progress(label, done, total)
+        if detail is None:
+            self.progress(label, done, total)
+        else:
+            self.progress(label, done, total, detail)
 
     def run(self) -> RunResult:
         problems = settings_mod.blocking_problems(self.settings)
@@ -152,7 +155,11 @@ class Runner:
                 self._prog("Working out dates and holidays", 0, 0)
                 counts["dates"] = dates.resolve_all(cat, self.settings)
 
-                # Phase 3+ steps go here: people, learning, plan, sync ...
+                cat.set_run(run_id, last_step="plan")
+                self._prog("Planning", 0, 0)
+                counts["plan"] = plan.preview(cat, str(self.paths.data / "derived")).totals
+
+                # Phase 3+ steps go here: people, learning, sync ...
 
                 cat.set_run(run_id, last_step="learned_backup")
                 learned.backup_learned_data(self.paths.catalog, self.paths.data, self.settings.backup,
@@ -201,7 +208,7 @@ def summary(paths: AppPaths) -> dict:
             "scans": cat.scalar("SELECT COUNT(DISTINCT a.file_id) FROM meta m JOIN assets a ON a.id=m.asset_id "
                                 f"WHERE m.is_scan=1 AND a.id IN ({ACTIVE_ASSETS})"),
             "cutouts": cat.scalar(f"SELECT COUNT(*) FROM assets WHERE kind='cutout' AND id IN ({ACTIVE_ASSETS})"),
-            "fixed": cat.scalar(f"SELECT COUNT(*) FROM fixes WHERE (status='auto' OR exif_rotation<>0) "
+            "fixed": cat.scalar(f"SELECT COUNT(*) FROM fixes WHERE (trim_applied=1 OR exif_rotation<>0 OR rotation<>0) "
                                 f"AND asset_id IN ({ACTIVE_ASSETS})"),
             "to_check": cat.scalar(f"SELECT COUNT(*) FROM fixes WHERE status='review' AND asset_id IN ({ACTIVE_ASSETS})"),
             "dup_groups": cat.scalar("SELECT COUNT(*) FROM dup_groups"),

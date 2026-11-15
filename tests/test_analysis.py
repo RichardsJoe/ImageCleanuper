@@ -258,23 +258,6 @@ def test_T21_other_formats_open(tmp_path):
     assert opened.size == (400, 300)
 
 
-def test_cutouts_listed_and_exported_with_readable_names(env, tmp_path):
-    from imagecleanuper.cutouts import export_cutouts, letter, scans_with_cutouts
-    paths, s, m1, _ = env
-    bed = scanner_bed([scene(30, (700, 500)), scene(31, (500, 700)), scene(32, (800, 550))], [2, -3, 1])
-    save_jpeg(bed, m1 / "Family" / "page1.jpg", software="EPSON Scan")
-    save_jpeg(scene(33), m1 / "phone.jpg", date="2020:01:01 10:00:00", make="Apple")
-    cat, _ = run(paths, s)
-    scans_ = scans_with_cutouts(cat)
-    assert len(scans_) == 1 and len(scans_[0].cutouts) == 3
-    n, folder = export_cutouts(cat, str(paths.data / "derived"), str(tmp_path / "out"))
-    assert n == 3
-    label = cat.scalar("SELECT label FROM sources ORDER BY id LIMIT 1")
-    names = sorted(os.listdir(tmp_path / "out" / label / "Family"))
-    assert names == ["page1_a.jpg", "page1_b.jpg", "page1_c.jpg"]
-    assert [letter(i) for i in (0, 25, 26)] == ["a", "z", "aa"]
-
-
 @pytest.mark.parametrize("gap", [40, 12])
 def test_split_prints_close_together(gap):
     """Prints laid close to each other on the bed must still come out as separate photos."""

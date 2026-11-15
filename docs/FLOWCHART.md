@@ -187,6 +187,9 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Privacy:** photos sent to Claude go to Anthropic's servers. Everything else stays on the PC. The Settings screen says this plainly.
 - **Claude's answers are scored too:** the accuracy check measures how often Claude was right, and its answers feed the learning like yours.
 
+### Parked ideas (not in the current plan)
+- **Enhance old photos** (colour/fade correction, grain removal, sharpening). Tested on a real 1980s print: rule-based settings help colour; **Claude-guided settings** (Claude looks at each photo and picks the settings, local tools apply them, about a cent per photo) gave the best result. Claude can't edit images itself. Optional local AI models would remove grain far better. Parked until the rest of the app is working; would slot in after cut-out/rotate/trim with a Keep enhanced / Use original review question.
+
 ### Not adopted
 - Treating default camera dates (e.g. 1 Jan 2000) as missing: camera dates are trusted as they are.
 - Dropping holiday questions from the accuracy check: they stay.
