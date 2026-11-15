@@ -46,9 +46,21 @@ def _background_mask(rgb: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     b = max(2, min(h, w) // 50)
     border = np.concatenate([rgb[:b].reshape(-1, 3), rgb[-b:].reshape(-1, 3),
                              rgb[:, :b].reshape(-1, 3), rgb[:, -b:].reshape(-1, 3)]).astype(np.int16)
-    bg = np.median(border, axis=0)
+    # The lid is the largest plain, light area ANYWHERE on the scan. (Using only the outer edge
+    # fails when prints are pushed into the corners: the "edge colour" is then mostly photo.)
+    step = max(1, min(h, w) // 300)
+    small = rgb[::step, ::step]
+    gray = cv2.cvtColor(np.ascontiguousarray(small), cv2.COLOR_RGB2GRAY).astype(np.float32)
+    mean = cv2.blur(gray, (7, 7))
+    std = np.sqrt(np.maximum(cv2.blur(gray * gray, (7, 7)) - mean * mean, 0))
+    flat_light = (std < 6) & (gray >= 200)
+    if flat_light.mean() >= 0.04:
+        samples = small[flat_light].astype(np.int16)
+    else:
+        samples = border  # no plain light area: fall back to the edge colour
+    bg = np.median(samples, axis=0)
     diff = np.abs(rgb.astype(np.int16) - bg).max(axis=2)
-    spread = float(np.percentile(np.abs(border - bg).max(axis=1), 90))
+    spread = float(np.percentile(np.abs(samples - bg).max(axis=1), 90))
     return diff <= max(18.0, spread + 10.0), bg
 
 
@@ -58,29 +70,26 @@ def detect_scan(img: Image.Image, info: ImageInfo) -> ScanCheck:
         return ScanCheck(True, 0.99, f"made by a scanner ({text[:40]})")
     if info.make and any(w in info.make.lower() for w in CAMERA_WORDS):
         return ScanCheck(False, 0.95, "taken with a camera or phone")
+    no_camera = not info.make and not info.exif_date
+    if not no_camera:
+        # Camera info present (Messenger/WhatsApp strip it, scanners rarely write it): a photo.
+        return ScanCheck(False, 0.9, "has camera info")
     rgb, _ = _work_size(img, 600)
     mask, _bg = _background_mask(rgb)
-    bg_share = float(mask.mean())
+    bed_share = float(mask.mean())
+    if not 0.08 < bed_share < 0.85:
+        return ScanCheck(False, 0.9, "no scanner lid visible")
+    # Several cleanly rectangular prints on a plain light background: prints on a scanner,
+    # even when they're pushed right into the corners.
+    prints = [b for b in find_photos_on_scan(img, min_area_share=0.03) if b.confidence >= 0.9]
+    if len(prints) >= 2:
+        return ScanCheck(True, 0.95, f"{len(prints)} prints on a scanner lid")
+    # One print with a plain margin all round: probably a single scanned print.
     border_bg = float(np.concatenate([mask[:5].ravel(), mask[-5:].ravel(),
                                       mask[:, :5].ravel(), mask[:, -5:].ravel()]).mean())
-    # A visible scanner bed (plain margin all round the edge) is required. Missing camera info
-    # alone proves nothing: Messenger/WhatsApp copies and screenshots have none either.
-    if border_bg <= 0.97:
-        return ScanCheck(False, 0.9, "no scanner bed visible")
-    no_camera = not info.make and not info.exif_date
-    score = 0.3
-    if no_camera:
-        score += 0.35
-    if 0.08 < bg_share < 0.8:
-        score += 0.15
-    if len(find_photos_on_scan(img, min_area_share=0.03)) >= 2:
-        score += 0.3
-    score = min(score, 0.98)
-    if score >= 0.9:
-        return ScanCheck(True, score, "looks like prints on a scanner bed")
-    if score >= 0.6:
-        return ScanCheck(True, score, "may be a scanned print (please check)")
-    return ScanCheck(False, 1 - score, "doesn't look like a scan")
+    if border_bg > 0.97:
+        return ScanCheck(True, 0.8, "may be a scanned print (please check)")
+    return ScanCheck(False, 0.8, "doesn't look like a scan")
 
 
 def find_photos_on_scan(img: Image.Image, min_area_share: float = 0.05) -> list[Box]:

@@ -19,8 +19,8 @@ _log = log.get("analyze")
 
 TAG_ORIENTATION = 0x0112
 # Bump when analysis rules change so earlier results are redone on the next run.
-# 1 = 0.2.0-0.2.2, 2 = better separation of prints laid close together (0.2.3).
-ANALYSIS_VERSION = 2
+# 1 = 0.2.0-0.2.2, 2 = close prints separated (0.2.3), 3 = prints touching the scan edges (0.2.4).
+ANALYSIS_VERSION = 3
 
 
 def pending(cat: Catalog) -> list:

@@ -335,3 +335,25 @@ def test_files_analyzed_by_older_rules_are_redone(env, monkeypatch):
     cat, _ = run(paths, s)
     assert len(calls) == 1                    # newer rules: redone once
     assert cat.scalar("SELECT COUNT(*) FROM assets") == 1  # old results replaced, not duplicated
+
+
+def test_prints_pushed_into_corners_no_scanner_info():
+    """Modelled on a real scan: three prints touching the edges and corners of the scan, light
+    lid showing only between them, and no scanner name in the file."""
+    bed = Image.new("RGB", (1454, 2000), (233, 231, 232))
+    bed.paste(scene(400, (680, 1010)), (0, 0))            # top-left corner
+    bed.paste(scene(401, (670, 985)), (784, 0))           # touches the top and right edges
+    bed.paste(scene(402, (1008, 685)), (446, 1315))       # bottom-right corner
+    info = imageio.ImageInfo()                            # no make, no software, no date
+    check = scans.detect_scan(bed, info)
+    assert check.is_scan, check
+    assert len(scans.find_photos_on_scan(bed)) == 3
+
+
+def test_phone_photo_with_white_wall_is_not_a_scan():
+    """A Messenger copy (no camera info) of a room with a big plain white wall."""
+    img = scene(410, (1600, 1200))
+    img.paste(Image.new("RGB", (1600, 500), (236, 236, 234)), (0, 0))   # plain white wall, top half
+    img.paste(scene(411, (500, 400)), (550, 120))                        # picture on the wall
+    assert not scans.detect_scan(img, imageio.ImageInfo()).is_scan or \
+        len(scans.find_photos_on_scan(img)) < 2
