@@ -106,3 +106,15 @@ def test_names_survive_photo_records_being_rebuilt(tmp_path):
     again = _face(cat, 1, mom, seed=3)                           # the same face, found again
     people.match_all(cat)
     assert cat.scalar("SELECT p.name FROM faces f JOIN people p ON p.id=f.person_id WHERE f.id=?", (again,)) == "Mom"
+
+
+def test_suggestions_rank_the_right_person_first(tmp_path):
+    cat = _cat(tmp_path)
+    mom, dad, gran = _person(10), _person(20), _person(30)
+    people.name_group(cat, [_face(cat, 1, mom)], "Mom")
+    people.name_group(cat, [_face(cat, 2, dad)], "Dad")
+    people.name_group(cat, [_face(cat, 3, gran)], "Grandma Rose")
+    new = [_face(cat, 4, dad, seed=7), _face(cat, 5, dad, seed=8)]
+    sug = people.suggest_for_group(cat, new)
+    assert [n for n, _ in sug][0] == "Dad" and len(sug) == 3
+    assert sug[0][1] > sug[1][1]

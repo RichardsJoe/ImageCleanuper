@@ -32,7 +32,7 @@ Every screen is built from the same four parts, so nothing is ever a dead end:
 
 1. **Nav bar on the left** (all main screens): Home · Run (R) · Review (V) · Report (P) · Finish (F) · Restore · Settings. The current page is highlighted; Review shows how many items are waiting. While a run is working, the other pages are greyed out until you pause it. First launch, setup and pop-ups have no nav bar.
 2. **Title + one line** saying what the screen is for.
-3. **Middle area** that scrolls when it doesn't fit; nothing important is ever pushed off-screen.
+3. **Middle area** that scrolls when it doesn't fit; nothing important is ever pushed off-screen. The window opens maximised and **photo previews grow to fill the space** (the sizes drawn here are the minimum).
 4. **Footer pinned to the bottom:** secondary action (Back / Not yet / Cancel, Esc) on the left, the main action (Enter) on the right, and a hotkey line.
 
 Screens are built exactly as drawn here. A screen that isn't in this document isn't built until it's added here first.
@@ -75,7 +75,7 @@ The app offers to continue from the last photo. Nothing is lost.
 ![Resume](wireframes/07-resume.svg)
 
 ### 7. Who is this? (first run, then whenever new faces appear)
-One person at a time. Type a name (suggestions appear as you type) or press Stranger.
+One person at a time. The app offers its **3 best guesses** (the people this face looks most like) as big buttons with **1 / 2 / 3** hotkeys; type a name only when it isn't one of them (names also auto-complete as you type), or press Stranger.
 
 ![Who is this](wireframes/08-who-is-this.svg)
 
@@ -137,3 +137,4 @@ What makes it easy to follow from start to finish:
 2. 2026-11-14 · v2: Scans-folder option removed (scans found automatically); Add Google Photos screen.
 3. 2026-11-14 · v3: Spending-limit popup.
 4. 2026-11-15 · v4: Nav bar on every main screen; Home simplified (no duplicate action tiles, last run shows date/time, no run number); layout rules written down.
+5. 2026-11-15 · v5: Who is this? gets 3 suggested names (1-3 hotkeys); previews grow with the window (opens maximised).

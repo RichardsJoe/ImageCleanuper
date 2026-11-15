@@ -37,8 +37,9 @@ class App(ctk.CTk):
         super().__init__()
         self.paths = paths
         self.title(f"ImageCleanuper {__version__}")
-        self.geometry("960x640")
-        self.minsize(820, 560)
+        self.geometry("1280x820")
+        self.minsize(900, 600)
+        self.after(0, self._maximise)
         self.msgs: queue.Queue = queue.Queue()
         self.runner: Runner | None = None
         self.state_info = startup(paths)
@@ -55,6 +56,15 @@ class App(ctk.CTk):
             if self.state_info.crashed_run:
                 self.after(300, self.ask_resume)
 
+    def _maximise(self):
+        try:
+            self.state("zoomed")              # Windows
+        except Exception:
+            try:
+                self.attributes("-zoomed", True)   # Linux
+            except Exception:
+                pass
+
     # ---- helpers ----------------------------------------------------------
     NAV_ITEMS = (("home", "Home"), ("run", "Run  (R)"), ("review", "Review  (V)"), ("report", "Report  (P)"),
                  ("finish", "Finish  (F)"), ("restore", "Restore"), ("settings", "Settings"))
@@ -66,7 +76,7 @@ class App(ctk.CTk):
         if self.body is not None:
             self.body.destroy()
         for seq in ("<Return>", "<Escape>", "<Key-r>", "<Key-a>", "<Key-u>", "<Key-s>", "<Key-n>", "<space>",
-                    "<Left>", "<Right>", "<Control-z>"):
+                    "<Left>", "<Right>", "<Control-z>", "<Key-1>", "<Key-2>", "<Key-3>"):
             self.unbind(seq)
         self._images = []
         self.body = ctk.CTkFrame(self, fg_color="transparent")
@@ -685,7 +695,8 @@ class App(ctk.CTk):
         self._images = []
         pair = ctk.CTkFrame(b, fg_color="transparent")
         pair.pack(fill="x", pady=(4, 0))
-        size = (330, 300)
+        cw, ch = self._avail()
+        size = (int((cw - 30) / 2), int(max(260, ch - 80)))
         left = ctk.CTkFrame(pair, fg_color="transparent")
         left.pack(side="left", padx=(0, 24))
         right = ctk.CTkFrame(pair, fg_color="transparent")
@@ -695,7 +706,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(right, text="After", text_color=MUTED, font=ctk.CTkFont(weight="bold"), anchor="w"
                      ).pack(fill="x")
         if it.question == "content":
-            self._image_box(left, it.derived or it.original, (420, 320), "").pack()
+            self._image_box(left, it.derived or it.original, (int(cw * 0.8), int(max(300, ch - 60))), "").pack()
             right.destroy()
         elif it.question == "rotation":
             current = it.derived or it.original
@@ -751,6 +762,13 @@ class App(ctk.CTk):
                           + f"U {undo_label} · → Skip · ← Back · Ctrl+Z Undo · Esc Home")
 
     # ---- who is this? (wireframe 08) ----------------------------------------------
+    def _avail(self) -> tuple[int, int]:
+        """Space for content (width, height) in the middle column, so previews can fill it."""
+        self.update_idletasks()
+        w = max(self.winfo_width(), 960)
+        h = max(self.winfo_height(), 640)
+        return w - 170 - 64 - 30, h - 210
+
     def show_who(self, index: int, groups=None):
         from .. import people as people_mod
         c = Catalog(self.paths.catalog)
@@ -766,37 +784,63 @@ class App(ctk.CTk):
                           "WHERE a.id=?", (f["asset_id"],))
                 img = str(self.paths.data / "derived" / a["derived_path"]) if a["derived_path"] else a["orig_path"]
                 samples.append((f, img))
+            suggestions = people_mod.suggest_for_group(c, g.face_ids)
         finally:
             c.close()
         total = len(groups)
-        b = self._screen("Who is this?", nav="review", review_count=None, subtitle=(
-            f"Seen in {plural(g.photos, 'photo')}. Type a name, or press Stranger if you don't know them."
+        cw, ch = self._avail()
+        b = self._screen("Who is this?", nav="review", subtitle=(
+            f"Seen in {plural(g.photos, 'photo')}. Pick a suggestion (1-3), type a name, or press Stranger."
             f"      Person {index + 1} of {total}"))
-        faces_row = ctk.CTkFrame(b, fg_color="transparent")
-        faces_row.pack(fill="x", pady=(4, 8))
+        side_w = 290
+        left_w = cw - side_w - 20
+        face_px = int(max(80, min(150, (left_w - 50) / 6)))
+        photo_h = int(max(150, min(460, ch - face_px - 90)))
+        photo_w = int((left_w - 12) / 2)
+        top = ctk.CTkFrame(b, fg_color="transparent")
+        top.pack(fill="both", expand=True)
+        left = ctk.CTkFrame(top, fg_color="transparent")
+        left.pack(side="left", fill="both", expand=True)
+        side = ctk.CTkFrame(top, fg_color="transparent", width=side_w)
+        side.pack(side="left", fill="y", padx=(20, 0), anchor="n")
+        faces_row = ctk.CTkFrame(left, fg_color="transparent")
+        faces_row.pack(fill="x", pady=(2, 8))
         for f, _ in samples:
             crop = str(self.paths.data / "faces" / f["crop_path"]) if f["crop_path"] else None
-            self._image_box(faces_row, crop, (96, 96)).pack(side="left", padx=(0, 10))
-        lower = ctk.CTkFrame(b, fg_color="transparent")
-        lower.pack(fill="x")
-        photos = ctk.CTkFrame(lower, fg_color="transparent")
-        photos.pack(side="left", anchor="n")
-        ctk.CTkLabel(photos, text="In the photo (the face asked about is circled):", text_color=MUTED,
+            self._image_box(faces_row, crop, (face_px, face_px)).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(left, text="In the photo (the face asked about is circled):", text_color=MUTED,
                      anchor="w").pack(fill="x")
-        prow = ctk.CTkFrame(photos, fg_color="transparent")
+        prow = ctk.CTkFrame(left, fg_color="transparent")
         prow.pack(fill="x", pady=4)
         for f, img in samples[:2]:
-            self._image_box(prow, img, (210, 150), crop=("circle", (f["x"], f["y"], f["w"], f["h"]))
-                            ).pack(side="left", padx=(0, 10))
-        form = ctk.CTkFrame(lower, fg_color="transparent")
-        form.pack(side="left", fill="x", expand=True, padx=(16, 0), anchor="n")
-        ctk.CTkLabel(form, text="Name  (N)", text_color=MUTED, anchor="w").pack(fill="x")
-        entry = ctk.CTkEntry(form, placeholder_text="e.g. Calvin")
+            self._image_box(prow, img, (photo_w, photo_h), crop=("circle", (f["x"], f["y"], f["w"], f["h"]))
+                            ).pack(side="left", padx=(0, 12))
+
+        def done():
+            self.show_review(index)   # the next group slides into this position
+
+        def pick(name):
+            self._save_name(g.face_ids, name)
+            done()
+        ctk.CTkLabel(side, text="Suggestions", font=ctk.CTkFont(weight="bold"), anchor="w").pack(fill="x")
+        if not suggestions:
+            ctk.CTkLabel(side, text="None yet: the first people you name\nbecome suggestions here.",
+                         text_color=MUTED, justify="left", anchor="w").pack(fill="x", pady=(4, 0))
+        for i, (name, score) in enumerate(suggestions, 1):
+            label = f"{i}    {name}" + (f"      {int(round(score * 100))}%" if score is not None else "")
+            ctk.CTkButton(side, text=label, anchor="w", height=44, width=side_w,
+                          font=ctk.CTkFont(size=15, weight="bold" if i == 1 else "normal"),
+                          fg_color=BLUE if i == 1 else "transparent", border_width=0 if i == 1 else 1,
+                          text_color="white" if i == 1 else ("gray10", "gray90"),
+                          command=lambda n=name: pick(n)).pack(fill="x", pady=(6, 0))
+            self.bind(f"<Key-{i}>", self._not_typing(lambda n=name: pick(n)))
+        ctk.CTkLabel(side, text="Not there? Type a name  (N)", text_color=MUTED, anchor="w").pack(fill="x", pady=(18, 2))
+        entry = ctk.CTkEntry(side, placeholder_text="e.g. Calvin", height=36)
         entry.pack(fill="x")
-        sugg = ctk.CTkFrame(form, fg_color="transparent", height=1)
+        sugg = ctk.CTkFrame(side, fg_color="transparent", height=1)
         sugg.pack(fill="x")
-        hint = ctk.CTkLabel(form, text="Names are saved in proper case: joseph richards → Joseph Richards",
-                            text_color=MUTED, font=ctk.CTkFont(size=11), anchor="w", wraplength=300, justify="left")
+        hint = ctk.CTkLabel(side, text="Proper case: joseph richards → Joseph Richards", text_color=MUTED,
+                            font=ctk.CTkFont(size=11), anchor="w", wraplength=side_w, justify="left")
         hint.pack(fill="x", pady=(6, 0))
 
         def refresh(_=None):
@@ -813,13 +857,10 @@ class App(ctk.CTk):
                 c2.close()
         entry.bind("<KeyRelease>", refresh)
 
-        def done(msg=None):
-            self.show_review(index)   # the next group slides into this position
-
         def save():
             typed = entry.get().strip()
             if not typed:
-                hint.configure(text="Type a name first, or press Stranger.", text_color=AMBER)
+                hint.configure(text="Pick a suggestion (1-3), type a name, or press Stranger.", text_color=AMBER)
                 return
             c2 = Catalog(self.paths.catalog)
             try:
@@ -827,9 +868,8 @@ class App(ctk.CTk):
             finally:
                 c2.close()
             if close:
-                return self._confirm_name(close, typed, g.face_ids, done)
-            self._save_name(g.face_ids, typed)
-            done()
+                return self._confirm_name(close, typed, g.face_ids, lambda *a: done())
+            pick(typed)
 
         def stranger():
             c2 = Catalog(self.paths.catalog)
@@ -852,7 +892,7 @@ class App(ctk.CTk):
         ctk.CTkButton(self.footer_area, text="Skip  (→)", fg_color="transparent", border_width=1, width=110,
                       text_color=("gray20", "gray85"), command=lambda: self.show_review(index + 1)
                       ).pack(side="left", padx=8)
-        ctk.CTkButton(self.footer_area, text="Save  (Enter)", fg_color=BLUE, height=38, width=170,
+        ctk.CTkButton(self.footer_area, text="Save typed name  (Enter)", fg_color=BLUE, height=38, width=210,
                       command=save).pack(side="right")
         ctk.CTkButton(self.footer_area, text="Stranger  (S)", fg_color="transparent", border_width=1, width=150,
                       text_color=("gray15", "gray90"), command=stranger).pack(side="right", padx=8)
@@ -861,10 +901,11 @@ class App(ctk.CTk):
         self.bind("<Key-n>", self._not_typing(lambda: entry.focus_set()))
         self.bind("<Right>", self._not_typing(lambda: self.show_review(index + 1)))
         self.bind("<Left>", self._not_typing(lambda: self.show_who(index - 1)))
-        self.bind("<Escape>", lambda e: self.show_home())
+        self.bind("<Escape>", lambda e: self.focus_set() if "entry" in str(self.focus_get()).lower()
+                  else self.show_home())
         self.bind("<Control-z>", lambda e: undo())
-        self._hotkey_line("Enter Save · S Stranger · N Name box · → Skip · ← Back · Ctrl+Z Undo · "
-                          "Esc Home (progress saved)")
+        self._hotkey_line("1-3 Pick a suggestion · Enter Save typed name · S Stranger · N Name box · → Skip · "
+                          "← Back · Ctrl+Z Undo · Esc Home")
 
     def _save_name(self, face_ids, typed):
         from .. import people as people_mod
@@ -970,12 +1011,15 @@ class App(ctk.CTk):
             grid = ctk.CTkFrame(right, fg_color="transparent")
             grid.pack(fill="x", pady=6)
             self._images = []
+            cw, ch = self._avail()
+            tw = int(max(100, min(220, (cw - 230 - 60) / 4 - 10)))
+            th = int(tw * 0.8)
             for i, e in enumerate(entries[page * self.REPORT_PAGE:(page + 1) * self.REPORT_PAGE]):
                 name = e.name if len(e.name) <= 14 else e.name[:13] + "…"
-                cell = self._image_box(grid, e.image, (100, 84), name + ("\ndate is a guess" if e.is_guess else ""))
+                cell = self._image_box(grid, e.image, (tw, th), name + ("\ndate is a guess" if e.is_guess else ""))
                 cell.grid(row=i // 4, column=i % 4, padx=4, pady=4, sticky="n")
             for c in range(4):
-                grid.grid_columnconfigure(c, minsize=108, uniform="thumbs")
+                grid.grid_columnconfigure(c, minsize=tw + 8, uniform="thumbs")
             if pages > 1:
                 nav = ctk.CTkFrame(right, fg_color="transparent")
                 nav.pack(fill="x")

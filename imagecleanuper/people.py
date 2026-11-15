@@ -249,3 +249,29 @@ def undo_last(cat: Catalog) -> bool:
 def photo_people(cat: Catalog, asset_id: int) -> list[str]:
     return [r["name"] for r in cat.q("""SELECT DISTINCT p.name FROM faces fc JOIN people p ON p.id = fc.person_id
                                         WHERE fc.asset_id=? ORDER BY p.name""", (asset_id,))]
+
+
+def suggest_for_group(cat: Catalog, face_ids: list[int], k: int = 3) -> list[tuple[str, float | None]]:
+    """The k people this group most looks like: (name, similarity 0..1). If fewer people are known
+    than k, the most recently used names fill the rest (with no score)."""
+    if not face_ids:
+        return []
+    marks = ",".join("?" * len(face_ids))
+    G = _emb(cat.q(f"SELECT embedding FROM faces WHERE id IN ({marks})", tuple(face_ids)))
+    refs = cat.q("""SELECT r.person_id, r.embedding, p.name FROM face_refs r JOIN people p ON p.id = r.person_id
+                    WHERE p.merged_into IS NULL""")
+    best: dict[str, float] = {}
+    for r in refs:
+        sim = float((G @ np.frombuffer(r["embedding"], np.float32)).max())
+        best[r["name"]] = max(best.get(r["name"], -1.0), sim)
+    ranked = sorted(best.items(), key=lambda x: -x[1])[:k]
+    out: list[tuple[str, float | None]] = [(n, max(0.0, s)) for n, s in ranked]
+    if len(out) < k:
+        recent = cat.q("""SELECT p.name, MAX(a.created_at) t FROM face_answers a JOIN people p ON p.id = a.created_person
+                          WHERE a.undone=0 GROUP BY p.name ORDER BY t DESC""")
+        for r in recent:
+            if r["name"] not in dict(out):
+                out.append((r["name"], None))
+            if len(out) >= k:
+                break
+    return out
