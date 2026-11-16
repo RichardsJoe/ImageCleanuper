@@ -15,6 +15,7 @@ from tkinter import filedialog
 import customtkinter as ctk
 
 from .. import __version__, log, settings as settings_mod
+from .. import app as app_mod
 from ..app import AppPaths, Runner, startup, summary
 from ..catalog import Catalog
 from ..learned import restore_learned_data
@@ -175,6 +176,7 @@ class App(ctk.CTk):
         ctk.CTkButton(bar, text="OK (Enter)", command=win.destroy).pack(side="right")
         win.bind("<Return>", lambda ev: win.destroy())
         win.bind("<Escape>", lambda ev: win.destroy())
+        self._centre(win)
         win.after(50, win.grab_set)
 
     # ---- setup step 1: photo folders -----------------------------------------
@@ -473,8 +475,11 @@ class App(ctk.CTk):
         if info.get("review"):
             return (f"Review {plural(info['review'], 'photo')} the app wasn't sure about",
                     "Then run again so it learns from your answers.", "Start review", self.show_review)
-        return ("See where every photo would go", "Check the plan in the report. Sorting itself arrives in "
-                "version 0.4.", "Open report", self.show_report)
+        if not info.get("last_sort"):
+            return ("Check the plan, then sort", "The report shows where every photo will go. Approve and sort "
+                    "copies them into your library; your originals stay put.", "Open report", self.show_report)
+        return ("Your library is sorted", "Run again whenever you add photos. When you're happy with "
+                "everything, Finish moves the originals in.", "Open report", self.show_report)
 
     def show_home(self):
         import datetime as dt
@@ -530,6 +535,11 @@ class App(ctk.CTk):
         line2 = (f"Claude: {'on' if self.settings.claude_enabled else 'off'} · "
                  f"{plural(len(self.settings.masters), 'photo folder')} · library {self.settings.library}")
         ctk.CTkLabel(box, text=line1, anchor="w").pack(fill="x", padx=16, pady=(12, 0))
+        srt = info.get("last_sort")
+        if srt:
+            when = dt.datetime.fromtimestamp(srt["ended_at"]).strftime("%a %d %b, %I:%M %p")
+            ctk.CTkLabel(box, text=f"Last sorted: {when} · {plural(info.get('library_files', 0), 'file')} "
+                         "in your library", anchor="w").pack(fill="x", padx=16)
         ctk.CTkLabel(box, text=line2, text_color=MUTED, anchor="w", font=ctk.CTkFont(size=12)
                      ).pack(fill="x", padx=16, pady=(0, 12))
         for p in self.state_info.problems:
@@ -559,6 +569,7 @@ class App(ctk.CTk):
                       command=lambda: (win.destroy(), self.start_run())).pack(side="right")
         win.bind("<Return>", lambda e: (win.destroy(), self.start_run()))
         win.bind("<Escape>", lambda e: win.destroy())
+        self._centre(win)
         win.after(50, win.grab_set)
 
     # ---- running (wireframe 06) -------------------------------------------------
@@ -568,7 +579,7 @@ class App(ctk.CTk):
                 "Comparing photos": "compare", "Working out dates and holidays": "compare", "Planning": "plan"}
 
     def start_run(self):
-        if self.runner is not None:
+        if self.runner is not None or getattr(self, "sorting", None):
             return
         self.settings, self.state_info.problems = settings_mod.load(self.paths.settings)
         b = self._screen("Working on your photos", nav="run", nav_locked=True, subtitle=
@@ -655,9 +666,13 @@ class App(ctk.CTk):
                     self.folders_changed = False
                     self.show_home()
                 elif kind == "error":
-                    self.runner = None
+                    self.runner = self.sorting = None
                     self.show_home()
                     self.error(msg[1])
+                elif kind == "sort_progress":
+                    self._sort_progress(*msg[1:])
+                elif kind == "sort_done":
+                    self._sort_finished(msg[1])
                 elif kind == "restore_done":
                     self.show_restore(result=msg[1])
         except queue.Empty:
@@ -937,6 +952,7 @@ class App(ctk.CTk):
                       ).pack(side="right")
         win.bind("<Return>", lambda e: pick(existing))
         win.bind("<Escape>", lambda e: win.destroy())
+        self._centre(win)
         win.after(50, win.grab_set)
 
     # ---- duplicates & burst shots (wireframe 11) ------------------------------------
@@ -1083,6 +1099,7 @@ class App(ctk.CTk):
         ctk.CTkButton(bar, text=f"{yes} (Enter)", fg_color=BLUE, command=go).pack(side="right")
         win.bind("<Return>", lambda e: go())
         win.bind("<Escape>", lambda e: win.destroy())
+        self._centre(win)
         win.after(50, win.grab_set)
 
     def _review_undo(self, index):
@@ -1195,10 +1212,122 @@ class App(ctk.CTk):
                                   hover_color=("gray90", "gray25"), command=cmd).pack(side="right")
             ctk.CTkLabel(attn, text="", height=4).pack()
         self._footer(back=("Not yet", self.show_home))
-        ctk.CTkButton(self.footer_area, text="Approve and sort  (arrives in 0.4)", state="disabled",
-                      width=260, height=38, fg_color=("gray80", "gray30"),
-                      text_color_disabled=("gray45", "gray60")).pack(side="right")
-        self._hotkey_line("Esc Back to Home · Sorting (Approve and sort) arrives in version 0.4")
+        can_sort = bool(pv.folders) and bool(self.settings.library)
+        ctk.CTkButton(self.footer_area, text="Approve and sort  (Enter)", fg_color=BLUE, width=240, height=38,
+                      state="normal" if can_sort else "disabled", command=self.start_sort).pack(side="right")
+        ctk.CTkLabel(self.footer_area, text=f"Copies into {self.settings.library}. Originals aren't touched.",
+                     text_color=MUTED, font=ctk.CTkFont(size=12)).pack(side="right", padx=12)
+        if can_sort:
+            self.bind("<Return>", lambda e: self.start_sort())
+        self._hotkey_line("Enter Approve and sort · Esc Back to Home")
+
+    # ---- sorting (wireframe 06 layout, one bar) ------------------------------------------
+    def start_sort(self):
+        import threading as _th
+        if self.runner is not None or getattr(self, "sorting", None):
+            return
+        b = self._screen("Sorting into your library", nav="run", nav_locked=True, subtitle=
+                         "Copies only. Your originals stay where they are until Finish.")
+        row = ctk.CTkFrame(b, fg_color="transparent")
+        row.pack(fill="x", pady=(8, 0))
+        row.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(row, text="Sort", font=ctk.CTkFont(size=15, weight="bold"), anchor="w", width=150
+                     ).grid(row=0, column=0, sticky="w", pady=12)
+        self.sort_bar = ctk.CTkProgressBar(row)
+        self.sort_bar.set(0)
+        self.sort_bar.grid(row=0, column=1, sticky="ew", padx=12)
+        self.sort_status = ctk.CTkLabel(row, text="Getting ready…", text_color=MUTED, anchor="w", width=260)
+        self.sort_status.grid(row=0, column=2, sticky="w")
+        now = ctk.CTkFrame(b, fg_color="transparent")
+        now.pack(fill="x", pady=(24, 0))
+        self.now_image = ctk.CTkLabel(now, text="", width=120, height=90, fg_color=("gray90", "gray20"))
+        self.now_image.pack(side="left")
+        self.now_text = ctk.CTkLabel(now, text="", anchor="w", justify="left")
+        self.now_text.pack(side="left", padx=16)
+        self._last_thumb = 0.0
+        stop = _th.Event()
+
+        def progress(label, done, total, detail=None):
+            if stop.is_set():
+                raise app_mod.Cancelled()
+            self.msgs.put(("sort_progress", label, done, total, detail))
+
+        def pause():
+            stop.set()
+            self.now_text.configure(text="Pausing after the current photo…")
+
+        ctk.CTkButton(self.footer_area, text="Pause  (Space)", command=pause, width=180, height=36).pack(side="right")
+        self.bind("<space>", lambda e: pause())
+        self.sorting = stop      # busy: a run can't start meanwhile
+
+        def worker():
+            try:
+                res = app_mod.sort_library(self.paths, self.settings, progress)
+                self.msgs.put(("sort_done", res))
+            except app_mod.Cancelled:
+                self.msgs.put(("sort_done", None))
+            except Exception as e:
+                log.get("ui").exception("sort failed")
+                self.msgs.put(("error", e))
+        _th.Thread(target=worker, daemon=True).start()
+
+    def _sort_progress(self, label, done, total, detail):
+        import time as _t
+        if not (hasattr(self, "sort_bar") and self.sort_bar.winfo_exists()):
+            return
+        if total:
+            self.sort_bar.set(done / total)
+            self.sort_status.configure(text=f"{done:,} of {total:,} changes")
+        else:
+            self.sort_status.configure(text=label + "…")
+        if detail and _t.time() - self._last_thumb > 1.5:
+            self._last_thumb = _t.time()
+            im = self._thumb(detail, (120, 90))
+            if im is not None:
+                self._images = (getattr(self, "_images", []))[-4:] + [im]
+                self.now_image.configure(image=im, text="")
+            self.now_text.configure(text=os.path.basename(detail))
+
+    def _sort_finished(self, res):
+        self.sorting = None
+        self.show_home()
+        if res is None:
+            self._notice("Sorting paused", "Press Approve and sort again to carry on. Nothing was lost.")
+            return
+        parts = [f"{res.added:,} added", f"{res.updated:,} updated", f"{res.removed:,} removed"]
+        if res.restored:
+            parts.append(f"{res.restored:,} put back")
+        lines = [", ".join(parts) + f"; {res.unchanged:,} already right."]
+        if res.edited_by_you:
+            lines.append(f"{plural(len(res.edited_by_you), 'file')} you changed were left alone.")
+        if res.in_the_way:
+            lines.append(f"{plural(len(res.in_the_way), 'photo')} weren't copied because another file "
+                         "already has that name.")
+        if res.failed:
+            lines.append(f"{plural(len(res.failed), 'photo')} couldn't be copied. Run Approve and sort "
+                         "again; the log lists them.")
+        self._notice("Your library is sorted", "\n".join(lines))
+
+    def _centre(self, win):
+        """Put a popup in the middle of the main window (not the corner of the screen)."""
+        win.update_idletasks()
+        w, h = max(win.winfo_reqwidth(), win.winfo_width()), max(win.winfo_reqheight(), win.winfo_height())
+        x = self.winfo_rootx() + (self.winfo_width() - w) // 2
+        y = self.winfo_rooty() + (self.winfo_height() - h) // 3
+        win.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+    def _notice(self, title: str, text: str):
+        win = ctk.CTkToplevel(self)
+        win.title(title)
+        win.transient(self)
+        ctk.CTkLabel(win, text=title, font=ctk.CTkFont(size=17, weight="bold"), anchor="w"
+                     ).pack(fill="x", padx=20, pady=(16, 4))
+        ctk.CTkLabel(win, text=text, anchor="w", justify="left", wraplength=460).pack(fill="x", padx=20)
+        ctk.CTkButton(win, text="OK  (Enter)", width=120, command=win.destroy).pack(anchor="e", padx=20, pady=16)
+        win.bind("<Return>", lambda e: win.destroy())
+        win.bind("<Escape>", lambda e: win.destroy())
+        self._centre(win)
+        win.after(50, win.grab_set)
 
     # ---- finish (wireframe 13) ------------------------------------------------------
     def show_finish(self):
@@ -1209,11 +1338,11 @@ class App(ctk.CTk):
         ctk.CTkLabel(b, text=("✓  " if ok else "!  ") + (f"Backup verified ({plural(info['backed_up'], 'file')})"
                      if ok else "Run first so everything is backed up"), text_color=GREEN if ok else AMBER,
                      anchor="w").pack(fill="x")
-        ctk.CTkLabel(b, text="!  Finish needs sorting, which arrives in version 0.4", text_color=AMBER,
+        ctk.CTkLabel(b, text="!  Moving the originals arrives in the next update (sorting works now)", text_color=AMBER,
                      anchor="w").pack(fill="x", pady=(4, 12))
         box = ctk.CTkFrame(b)
         box.pack(fill="x")
-        ctk.CTkLabel(box, text="What will happen (from version 0.4)", font=ctk.CTkFont(weight="bold"),
+        ctk.CTkLabel(box, text="What will happen", font=ctk.CTkFont(weight="bold"),
                      anchor="w").pack(fill="x", padx=16, pady=(12, 4))
         for line in ("Originals move into your sorted library (fixed photos stay as their fixed version)",
                      "Folders left completely empty are deleted; folders with anything else are left alone",
@@ -1223,7 +1352,7 @@ class App(ctk.CTk):
                          ).pack(fill="x", padx=16)
         ctk.CTkLabel(box, text="", height=6).pack()
         self._footer(back=("Home", self.show_home))
-        ctk.CTkButton(self.footer_area, text="Move originals  (arrives in 0.4)", state="disabled",
+        ctk.CTkButton(self.footer_area, text="Move originals  (next update)", state="disabled",
                       width=260, height=38, fg_color=("gray80", "gray30"),
                       text_color_disabled=("gray45", "gray60")).pack(side="right")
         self._hotkey_line("Esc Home")

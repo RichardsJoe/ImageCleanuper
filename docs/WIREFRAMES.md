@@ -66,6 +66,7 @@ Explains the four things that happen next, and how long it will take, before any
 
 ### 5. Running
 One bar per stage, time remaining, and the photo being worked on. Pause any time.
+Approve and sort uses this same screen with a single "Sort" bar ("Sorting into your library"), then returns to Home with a short summary.
 
 ![Running](wireframes/06-run.svg)
 

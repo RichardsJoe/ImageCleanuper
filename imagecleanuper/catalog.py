@@ -264,6 +264,26 @@ MIGRATIONS: list[str] = [
         created_at REAL NOT NULL
     );
     """,
+    # 11: Approve and sort: the library files this app made (rule R5) and each sort's summary
+    """
+    CREATE TABLE owned_files (
+        rel_path TEXT PRIMARY KEY,        -- inside the library, "/" separators
+        content_key TEXT NOT NULL,        -- which photo it is (see content.content_key) or readme:<folder>
+        src_sha TEXT NOT NULL,            -- fingerprint of what was copied
+        src_stat TEXT,                    -- "size:mtime_ns" of the source when copied (skip re-hashing)
+        sha256 TEXT NOT NULL,             -- fingerprint of the library file as written
+        size INTEGER NOT NULL,
+        created_at REAL NOT NULL,
+        updated_at REAL NOT NULL
+    );
+    CREATE TABLE syncs (
+        id INTEGER PRIMARY KEY,
+        started_at REAL NOT NULL,
+        ended_at REAL,
+        state TEXT NOT NULL,              -- running | done | stopped | crashed
+        counts TEXT                       -- JSON
+    );
+    """,
 ]
 
 

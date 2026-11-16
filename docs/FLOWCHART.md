@@ -195,6 +195,11 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **What you teach survives re-analysis:** named people and strangers are kept as face references, and Yes/No answers are tied to the photo's content fingerprint, not to database record numbers.
 - **Learning:** pets, categories and Junk start from CLIP comparing the photo with descriptions; after 10+ yes/no answers for a check, a small model trained on your answers is blended in (up to 80% weight as answers grow; best samples count 3x). People are recognised from every face you've named.
 
+### Phase 4 as built (so far)
+- **Duplicates & bursts screen:** pick one or several copies to keep, the rest leave the library (Recycle Bin at Finish); one choice can apply to every group; Ctrl+Z undoes a whole click. Burst shots (same camera, seconds apart) keep the sharpest by default.
+- **Approve and sort** copies the plan into your library (originals untouched until Finish). Fixed and cut-out photos are copied as their fixed JPEG; multi-photo scans also go to `Old Family Photos/Original Scans`. Name clashes get `_2`, `_3` in an order that depends only on the photos, so names never swap between sorts. Each later sort only adds, updates or removes what changed. The app only ever changes files it made: a library file you edited, or a file of yours in the way, is left alone and reported. Folders left empty are deleted. Special folders get a READ ME.
+- **New photos later:** only new or changed files are analysed and face-scanned; everything you've taught (names, strangers, yes/no answers, copy choices) is kept and applied to them automatically.
+
 ### Parked ideas (not in the current plan)
 - **Enhance old photos** (colour/fade correction, grain removal, sharpening). Tested on a real 1980s print: rule-based settings help colour; **Claude-guided settings** (Claude looks at each photo and picks the settings, local tools apply them, about a cent per photo) gave the best result. Claude can't edit images itself. Optional local AI models would remove grain far better. Parked until the rest of the app is working; would slot in after cut-out/rotate/trim with a Keep enhanced / Use original review question.
 
@@ -227,3 +232,4 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 17. 2026-11-14 · v17: Spending-limit popup: continue with free local models, raise the limit, or pause.
 18. 2026-11-14 · v18: One Start review queue; QA renamed Accuracy check (folder `_Accuracy Check`); type FINISH to confirm.
 19. 2026-11-15 · v19: Upright prints via faces (auto / ask / leave), local image model as second opinion in phase 3, no Claude for rotation; Approve and sort stays in phase 4; Enhance parked.
+20. 2026-11-16 · v20: Phase 4: duplicates & bursts screen; Approve and sort copies the plan into the library (Original Scans, stable clash names, never touches your files).

@@ -41,7 +41,8 @@ def test_preview_folders(env):
     assert keys.index("2019/Holidays/Christmas") < keys.index(unknown) < \
         keys.index("Old Family Photos/1987/Holidays/Christmas")
     tree = pv.tree()
-    assert tree["Old Family Photos"]["_count"] == 3
+    assert tree["Old Family Photos"]["_count"] == 4          # three cut-outs + the original scan
+    assert len(pv.folders["Old Family Photos/Original Scans"]) == 1
 
 
 def _force_review(cat, asset_id, box=None):

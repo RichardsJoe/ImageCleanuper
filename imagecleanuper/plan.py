@@ -1,8 +1,8 @@
 """Where every photo would go (pseudocode section 16). Phase 2: a read-only preview for the Report.
 
 Implemented: year (or Unknown Date / Unknown Year), Holidays, People, Pets, categories, Videos,
-Old Family Photos, _Junk, _Duplicates, _Could Not Open, Other.
-Nothing is copied or moved until phase 4 (Approve and sort).
+Old Family Photos (+ Original Scans), _Junk, _Duplicates, _Could Not Open, Other.
+Nothing is copied until you press Approve and sort (sync.py turns this preview into library files).
 """
 
 from __future__ import annotations
@@ -23,6 +23,8 @@ class Entry:
     image: str | None      # derived image, or the original file
     original: str
     is_guess: bool = False
+    src: str | None = None  # the file Approve and sort copies (derived image or the original)
+    ckey: str = ""          # content key: file fingerprint + kind + cut-out position (stable across runs)
 
 
 @dataclass
@@ -76,18 +78,27 @@ def preview(cat: Catalog, derived_dir: str, categories: dict | None = None) -> P
     totals = defaultdict(int)
     cut_wrong = {r["file_id"] for r in rows if r["kind"] == "cutout" and r["fix_status"] == "undone"}
     whole_scan_done: set[int] = set()
+    originals_done: set[int] = set()
     for r in rows:
         if r["kind"] == "cutout" and r["file_id"] in cut_wrong:
             # A cut-out was marked wrong: keep the whole scan as one photo instead.
             if r["file_id"] in whole_scan_done:
                 continue
             whole_scan_done.add(r["file_id"])
-            entry = Entry(f"f{r['file_id']}", os.path.basename(r["rel_path"]), r["orig_path"], r["orig_path"])
+            entry = Entry(f"f{r['file_id']}", os.path.basename(r["rel_path"]), r["orig_path"], r["orig_path"],
+                          src=r["orig_path"], ckey=f"{r['sha256']}:file:")
         else:
             suffix = f" ({chr(97 + r['cutout_index'])})" if r["kind"] == "cutout" else ""
             image = os.path.join(derived_dir, r["derived_path"]) if r["derived_path"] else r["orig_path"]
             entry = Entry(f"a{r['id']}", os.path.basename(r["rel_path"]) + suffix, image, r["orig_path"],
-                          bool(r["is_guess"]))
+                          bool(r["is_guess"]), src=image,
+                          ckey=f"{r['sha256']}:{r['kind']}:{'' if r['cutout_index'] is None else r['cutout_index']}")
+            if r["kind"] == "cutout" and r["file_id"] not in originals_done:
+                # The untouched multi-photo scan is kept too, so nothing is ever lost.
+                originals_done.add(r["file_id"])
+                folders["Old Family Photos/Original Scans"].append(Entry(
+                    f"f{r['file_id']}", os.path.basename(r["rel_path"]), r["orig_path"], r["orig_path"],
+                    src=r["orig_path"], ckey=f"{r['sha256']}:file:"))
         if r["decision"] == "remove":         # you chose to remove this copy (Recycle Bin at Finish)
             totals["removed"] += 1
             continue
@@ -119,8 +130,10 @@ def preview(cat: Catalog, derived_dir: str, categories: dict | None = None) -> P
         for d in dests:
             folders[d].append(entry)
         totals["sorted"] += 1
-    for r in cat.q("SELECT id, orig_path, rel_path FROM active_files WHERE status='could_not_open' ORDER BY rel_path"):
-        folders["_Could Not Open"].append(Entry(f"f{r['id']}", os.path.basename(r["rel_path"]), None, r["orig_path"]))
+    for r in cat.q("SELECT id, orig_path, rel_path, sha256 FROM active_files WHERE status='could_not_open' "
+                   "ORDER BY rel_path"):
+        folders["_Could Not Open"].append(Entry(f"f{r['id']}", os.path.basename(r["rel_path"]), None, r["orig_path"],
+                                                src=r["orig_path"], ckey=f"{r['sha256']}:file:"))
         totals["could_not_open"] += 1
     from .review import count as review_count
     totals["need_review"] = review_count(cat)

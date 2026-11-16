@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import backup, compare, content, dates, discover, learned, log, people, plan, settings as settings_mod
+from . import backup, compare, content, dates, discover, learned, log, people, plan, settings as settings_mod, sync
 from .ai import pass_ as ai_pass
 from .analyze import run as analyze_run
 from .catalog import Catalog, default_catalog_path
@@ -78,6 +78,8 @@ def recover_journal(cat: Catalog) -> int:
     for entry_id, kind, payload in cat.open_journal_entries():
         if kind == "backup_part":
             backup.recover_backup_entry(cat, entry_id, payload)
+        elif kind in ("sync_write", "sync_remove"):
+            sync.recover_entry(cat, entry_id, kind, payload)
         else:
             # Unknown kinds come from newer versions; leave them for that version.
             _log.warning("journal entry %s of kind %s left for later", entry_id, kind)
@@ -186,6 +188,19 @@ class Runner:
             cat.close()
 
 
+def sort_library(paths: AppPaths, s: settings_mod.Settings, progress: Progress | None = None) -> sync.SyncResult:
+    """Approve and sort: copy the plan into the library (runs on a worker thread)."""
+    problems = settings_mod.blocking_problems(s)
+    if problems:
+        raise UserError("Some settings need fixing before sorting.", " ".join(problems))
+    cat = Catalog(paths.catalog)
+    try:
+        with keep_awake():
+            return sync.sync_library(cat, s.library, str(paths.data / "derived"), s.categories, progress)
+    finally:
+        cat.close()
+
+
 def summary(paths: AppPaths) -> dict:
     """Numbers for the Home screen."""
     if not paths.catalog.exists():
@@ -219,6 +234,8 @@ def summary(paths: AppPaths) -> dict:
             "to_check": cat.scalar(f"SELECT COUNT(*) FROM fixes WHERE status='review' AND asset_id IN ({ACTIVE_ASSETS})"),
             "dup_groups": cat.scalar("SELECT COUNT(*) FROM dup_groups"),
             "dup_extras": cat.scalar("SELECT COUNT(*) FROM dup_members WHERE is_kept=0"),
+            "last_sort": sync.last_sync(cat),
+            "library_files": cat.scalar("SELECT COUNT(*) FROM owned_files"),
         }
     finally:
         cat.close()

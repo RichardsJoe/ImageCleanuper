@@ -23,5 +23,16 @@ def test_screens_open(env):
                      app.show_restore, app.show_restore_search, app.show_hotkeys):
             show()
             app.update()
+        # Approve and sort from the Report: progress screen, then Home with the summary.
+        import os
+        import time
+        app.show_report()
+        app.start_sort()
+        deadline = time.time() + 60
+        while getattr(app, "sorting", None) and time.time() < deadline:
+            app.update()
+            time.sleep(0.05)
+        assert not getattr(app, "sorting", None)
+        assert os.path.exists(os.path.join(s.library, "2019", "Holidays", "Christmas", "a.jpg"))
     finally:
         app.destroy()
