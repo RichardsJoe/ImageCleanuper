@@ -657,7 +657,145 @@ class App(ctk.CTk):
                 ctk.CTkLabel(r, text=what, anchor="w").pack(side="left")
 
     def _settings_claude(self, b, s):
-        self._section(b, "Claude second opinion", "Coming in the next update.")
+        from .. import claude_assist as ca
+        self._section(b, "Claude second opinion", "Claude looks at photos the local image model is unsure about "
+                      "(Pets, Junk, your categories). Only those photos are sent to Anthropic; everything else "
+                      "stays on your PC. Your own answers always win.")
+        has_key = bool(ca.get_key())
+        row = ctk.CTkFrame(b, fg_color="transparent")
+        row.pack(fill="x", pady=8)
+        on = ctk.BooleanVar(value=s.claude_enabled and has_key)
+
+        def toggled():
+            if on.get() and not ca.get_key():
+                on.set(False)
+                self._connect_claude(s)
+            else:
+                s.claude_enabled = on.get()
+        ctk.CTkSwitch(row, text="Claude second opinion", variable=on, command=toggled).pack(side="left")
+        ctk.CTkButton(row, text="Connect Claude…" if not has_key else "Change key, model or limit…", width=220,
+                      command=lambda: self._connect_claude(s)).pack(side="left", padx=16)
+        spent = 0.0
+        if self.paths.catalog.exists():
+            c = Catalog(self.paths.catalog)
+            try:
+                spent = ca.spent_this_month(c)
+            finally:
+                c.close()
+        lines = [f"Key: {'saved in Windows Credential Manager' if has_key else 'not added yet'}",
+                 f"Model: {ca.MODELS.get(s.claude_model, s.claude_model)}",
+                 f"Spent this month: ${spent:.2f} of your ${s.claude_monthly_limit_usd:.2f} limit"]
+        for line in lines:
+            ctk.CTkLabel(b, text=line, anchor="w", text_color=MUTED).pack(fill="x")
+
+    def _connect_claude(self, s):
+        """Wireframe 14's popup: get a key, set up billing, paste and test the key, model, limit."""
+        import webbrowser
+        from .. import claude_assist as ca
+        win = ctk.CTkToplevel(self)
+        win.title("Connect Claude")
+        win.transient(self)
+        pad = {"padx": 26}
+        ctk.CTkLabel(win, text="Connect Claude", font=ctk.CTkFont(size=20, weight="bold"), anchor="w"
+                     ).pack(fill="x", pady=(20, 2), **pad)
+        ctk.CTkLabel(win, text="Claude gives a second opinion on photos the app is unsure about.\nThose photos are "
+                     "sent to Anthropic; everything else stays on your PC.", text_color=MUTED, justify="left",
+                     anchor="w").pack(fill="x", **pad)
+        for n, label, url in (("1", "Get an API key  ↗", ca.KEYS_URL), ("2", "Set up billing  ↗", ca.BILLING_URL)):
+            r = ctk.CTkFrame(win, fg_color="transparent")
+            r.pack(fill="x", pady=(10, 0), **pad)
+            ctk.CTkLabel(r, text=n, text_color=BLUE, font=ctk.CTkFont(size=15, weight="bold"), width=24
+                         ).pack(side="left")
+            ctk.CTkButton(r, text=label, width=220, command=lambda u=url: webbrowser.open(u)).pack(side="left")
+        r = ctk.CTkFrame(win, fg_color="transparent")
+        r.pack(fill="x", pady=(14, 0), **pad)
+        ctk.CTkLabel(r, text="3", text_color=BLUE, font=ctk.CTkFont(size=15, weight="bold"), width=24).pack(side="left")
+        ctk.CTkLabel(r, text="Paste your key", anchor="w").pack(side="left")
+        r = ctk.CTkFrame(win, fg_color="transparent")
+        r.pack(fill="x", pady=4, **pad)
+        key = ctk.CTkEntry(r, width=300, show="•", placeholder_text="sk-ant-…")
+        key.pack(side="left", padx=(24, 6))
+        existing = ca.get_key()
+        if existing:
+            key.insert(0, existing)
+
+        def paste():
+            try:
+                key.delete(0, "end")
+                key.insert(0, self.clipboard_get().strip())
+            except Exception:
+                pass
+        ctk.CTkButton(r, text="Paste", width=70, command=paste).pack(side="left", padx=3)
+        ctk.CTkButton(r, text="Show", width=70,
+                      command=lambda: key.configure(show="" if key.cget("show") else "•")).pack(side="left", padx=3)
+        r2 = ctk.CTkFrame(win, fg_color="transparent")
+        r2.pack(fill="x", pady=4, **pad)
+        status = ctk.CTkLabel(r2, text="", anchor="w")
+        def chosen_model():
+            return next(k for k, v in ca.MODELS.items() if v == model.get())
+
+        def test():
+            status.configure(text="Testing…", text_color=MUTED)
+            win.update_idletasks()
+            ok, msg = ca.test_key(key.get().strip(), chosen_model())
+            status.configure(text=("✓ " if ok else "! ") + msg, text_color=GREEN if ok else AMBER)
+        ctk.CTkButton(r2, text="Test key", width=100, command=test).pack(side="left", padx=(24, 10))
+        status.pack(side="left")
+        r3 = ctk.CTkFrame(win, fg_color="transparent")
+        r3.pack(fill="x", pady=(10, 0), **pad)
+        ctk.CTkLabel(r3, text="Model:", width=110, anchor="w").pack(side="left")
+        model_names = list(ca.MODELS.values())
+        model = ctk.CTkOptionMenu(r3, values=model_names, width=260)
+        model.set(ca.MODELS.get(s.claude_model, model_names[0]))
+        model.pack(side="left")
+        r4 = ctk.CTkFrame(win, fg_color="transparent")
+        r4.pack(fill="x", pady=(6, 0), **pad)
+        ctk.CTkLabel(r4, text="Spending limit:", width=110, anchor="w").pack(side="left")
+        limits = [f"${v:g}" for v in ca.LIMIT_STEPS]
+        limit = ctk.CTkOptionMenu(r4, values=limits, width=120)
+        limit.set(f"${s.claude_monthly_limit_usd:g}" if f"${s.claude_monthly_limit_usd:g}" in limits else "$5")
+        limit.pack(side="left")
+        ctk.CTkLabel(r4, text="  a month", text_color=MUTED).pack(side="left")
+        bar = ctk.CTkFrame(win, fg_color="transparent")
+        bar.pack(fill="x", pady=18, **pad)
+
+        def apply(enabled):
+            for target in {id(s): s, id(self.settings): self.settings}.values():
+                target.claude_enabled = enabled
+                target.claude_model = chosen_model()
+                target.claude_monthly_limit_usd = float(limit.get().lstrip("$"))
+            settings_mod.save(self.settings, self.paths.settings)
+
+        def save():
+            k = key.get().strip()
+            if not k:
+                status.configure(text="! Paste your key first", text_color=AMBER)
+                return
+            try:
+                ca.set_key(k)
+            except Exception as e:
+                status.configure(text=f"! Couldn't save the key in Windows Credential Manager ({e})",
+                                 text_color=AMBER)
+                return
+            apply(True)
+            win.destroy()
+            self.show_settings("Claude", keep=True)
+
+        def remove():
+            ca.delete_key()
+            apply(False)
+            win.destroy()
+            self.show_settings("Claude", keep=True)
+        if existing:
+            ctk.CTkButton(bar, text="Remove key", width=110, fg_color="transparent", border_width=1,
+                          text_color=("#c0392b", "#e57373"), command=remove).pack(side="left")
+        ctk.CTkButton(bar, text="Save  (Enter)", fg_color=BLUE, width=140, command=save).pack(side="right")
+        ctk.CTkButton(bar, text="Cancel  (Esc)", width=130, fg_color="transparent", border_width=1,
+                      text_color=("gray20", "gray85"), command=win.destroy).pack(side="right", padx=8)
+        win.bind("<Return>", lambda e: save())
+        win.bind("<Escape>", lambda e: win.destroy())
+        self._centre(win)
+        win.after(50, lambda: (win.grab_set(), key.focus_set()))
 
     # ---- setup step 3: ready ---------------------------------------------------
     def show_setup_ready(self):
@@ -897,7 +1035,7 @@ class App(ctk.CTk):
     # ---- running (wireframe 06) -------------------------------------------------
     STAGES = (("backup", "Back up"), ("analyze", "Analyze"), ("compare", "Compare & dates"), ("plan", "Plan"))
     STAGE_OF = {"Finding photos": "backup", "Backing up": "backup", "Looking at photos": "analyze",
-                "Finding faces": "analyze",
+                "Finding faces": "analyze", "Asking Claude about unsure photos": "analyze",
                 "Comparing photos": "compare", "Working out dates and holidays": "compare", "Planning": "plan"}
 
     def start_run(self):
@@ -931,7 +1069,7 @@ class App(ctk.CTk):
                       ).pack(side="right")
         self.bind("<space>", lambda e: self.pause_run())
         self.runner = Runner(self.paths, self.settings,
-                             progress=lambda *a: self.msgs.put(("progress", *a)))
+                             progress=lambda *a: self.msgs.put(("progress", *a)), ask_limit=self._ask_limit)
         threading.Thread(target=self._run_worker, daemon=True).start()
 
     def _run_worker(self):
@@ -941,6 +1079,43 @@ class App(ctk.CTk):
         except Exception as e:  # shown on the UI thread
             log.get("ui").exception("run failed")
             self.msgs.put(("error", e))
+
+    def _ask_limit(self, spent, limit, done, left):
+        """Called on the worker thread: show wireframe 17 and wait up to 5 minutes for an answer."""
+        import threading as _th
+        ev, box = _th.Event(), {"choice": "local"}
+        self.msgs.put(("limit", spent, limit, done, left, ev, box))
+        ev.wait(300)                    # no answer in 5 minutes: continue with the free local models
+        return box["choice"]
+
+    def _limit_popup(self, spent, limit, done, left, ev, box):
+        win = ctk.CTkToplevel(self)
+        win.title("Claude spending limit reached")
+        win.transient(self)
+
+        def choose(c):
+            box["choice"] = c
+            ev.set()
+            win.destroy()
+        ctk.CTkLabel(win, text="Claude spending limit reached", font=ctk.CTkFont(size=17, weight="bold"),
+                     anchor="w").pack(fill="x", padx=22, pady=(18, 4))
+        ctk.CTkLabel(win, text=f"You've spent ${spent:.2f} of your ${limit:.2f} limit this month.\n"
+                     f"Claude gave a second opinion on {plural(done, 'unsure photo')}.\n"
+                     f"{plural(left, 'unsure photo')} are left. What should happen to them?",
+                     anchor="w", justify="left").pack(fill="x", padx=22)
+        for i, (text, c) in enumerate((("Continue with the free local models   (they go to Needs Review)", "local"),
+                                       ("Raise the limit by $5 and keep using Claude", "raise"),
+                                       ("Pause the run", "pause")), 1):
+            ctk.CTkButton(win, text=f"{i}   {text}", anchor="w", height=38, fg_color="transparent", border_width=1,
+                          border_color=("gray70", "gray40"), text_color=("gray10", "gray90"),
+                          hover_color=("gray88", "gray25"), command=lambda c=c: choose(c)).pack(fill="x", padx=22, pady=3)
+            win.bind(str(i), lambda e, c=c: choose(c))
+        ctk.CTkLabel(win, text="No answer in 5 minutes? The run continues with the free local models.",
+                     text_color=MUTED, anchor="w").pack(fill="x", padx=22, pady=(6, 18))
+        win.protocol("WM_DELETE_WINDOW", lambda: choose("local"))
+        win.after(300_000, lambda: win.winfo_exists() and win.destroy())
+        self._centre(win)
+        win.after(50, win.grab_set)
 
     def pause_run(self):
         if self.runner:
@@ -991,6 +1166,8 @@ class App(ctk.CTk):
                     self.runner = self.sorting = None
                     self.show_home()
                     self.error(msg[1])
+                elif kind == "limit":
+                    self._limit_popup(*msg[1:])
                 elif kind == "sort_progress":
                     self._sort_progress(*msg[1:])
                 elif kind == "job_done":

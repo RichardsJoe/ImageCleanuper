@@ -348,6 +348,17 @@ MIGRATIONS: list[str] = [
         value TEXT
     );
     """,
+    # 15: Claude's second opinions on unsure photos (kept by content key; your answers still win)
+    """
+    CREATE TABLE claude_opinions (
+        content_key TEXT NOT NULL,
+        check_key TEXT NOT NULL,
+        value INTEGER NOT NULL,           -- 1 yes, 0 no
+        model TEXT,
+        created_at REAL NOT NULL,
+        PRIMARY KEY (content_key, check_key)
+    );
+    """,
 ]
 
 

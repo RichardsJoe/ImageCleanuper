@@ -75,6 +75,10 @@ def classify_all(cat: Catalog, s: Settings) -> dict:
     for a in cat.q("SELECT asset_id, check_key, value, best FROM content_answers "
                    "WHERE undone=0 AND asset_id IS NOT NULL ORDER BY id"):
         answers[(a["asset_id"], a["check_key"])] = (a["value"], a["best"])
+    claude = {(r[0], r[1]): r[2] for r in cat.q(
+        "SELECT a.id, o.check_key, o.value FROM claude_opinions o JOIN files f ON f.sha256 = substr(o.content_key, 1, 64) "
+        "JOIN assets a ON a.file_id = f.id AND o.content_key = f.sha256 || ':' || a.kind || ':' || "
+        "IFNULL(a.cutout_index, '')")}
     counts: dict[str, dict] = {}
     all_checks = checks(s)
     with cat.tx():
@@ -101,6 +105,8 @@ def classify_all(cat: Catalog, s: Settings) -> dict:
                     status = "yes" if ans[0] else "no"
                 elif p[i] >= YES:
                     status = "yes"
+                elif p[i] >= NO and (aid, key) in claude:   # unsure: Claude's second opinion decides
+                    status = "yes" if claude[(aid, key)] else "no"
                 elif p[i] >= NO:
                     status = "review"
                 else:

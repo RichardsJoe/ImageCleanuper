@@ -107,10 +107,12 @@ class Cancelled(Exception):
 class Runner:
     """Runs the pipeline on a worker thread. The UI only reads progress messages."""
 
-    def __init__(self, paths: AppPaths, s: settings_mod.Settings, progress: Progress | None = None):
+    def __init__(self, paths: AppPaths, s: settings_mod.Settings, progress: Progress | None = None,
+                 ask_limit=None):
         self.paths = paths
         self.settings = s
         self.progress = progress or (lambda *_: None)
+        self.ask_limit = ask_limit          # Claude spending limit reached: ask the UI what to do
         self.cancel_event = threading.Event()
 
     def cancel(self) -> None:
@@ -163,6 +165,18 @@ class Runner:
                 counts["ai"] = ai_pass.run(cat, str(self.paths.data), self.settings.min_face_px, self._prog)
                 counts["people"] = people.match_all(cat)
                 counts["content"] = content.classify_all(cat, self.settings)
+                if self.settings.claude_enabled:
+                    from . import claude_assist
+                    cat.set_run(run_id, last_step="claude")
+                    limit_before = self.settings.claude_monthly_limit_usd
+                    try:
+                        counts["claude"] = claude_assist.run(cat, self.settings, str(self.paths.data / "derived"),
+                                                             self._prog, self.ask_limit).__dict__
+                    except claude_assist.Paused:
+                        raise Cancelled()
+                    finally:
+                        if self.settings.claude_monthly_limit_usd != limit_before:   # you raised the limit
+                            settings_mod.save(self.settings, self.paths.settings)
 
                 cat.set_run(run_id, last_step="compare")
                 self._prog("Comparing photos", 0, 0)
