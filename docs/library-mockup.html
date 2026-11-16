@@ -86,12 +86,20 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 .caret{flex:none;color:var(--muted);transition:transform .15s}
 .ghead[aria-expanded="false"] .caret{transform:rotate(-90deg)}
 .facet{display:flex;flex-direction:column;gap:2px}
-.facet button{display:flex;justify-content:space-between;gap:8px;border:0;background:transparent;text-align:left;padding:5px 8px;border-radius:6px}
-.facet button:hover{background:var(--sunk)}
-.facet button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
-.facet button.zero{color:var(--muted);opacity:.45;cursor:default}
-.facet button.zero:hover{background:transparent}
-.facet button em{font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
+.trow{display:flex;align-items:center;gap:2px}
+.trow.lastfav{border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:4px}
+.facet .tag{flex:1;min-width:0;display:flex;justify-content:space-between;gap:8px;border:0;background:transparent;text-align:left;padding:5px 8px;border-radius:6px}
+.facet .tag span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.facet .tag:hover{background:var(--sunk)}
+.facet .tag.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.facet .tag.zero{color:var(--muted);opacity:.45;cursor:default}
+.facet .tag.zero:hover{background:transparent}
+.star{flex:none;width:24px;height:24px;border:0;background:transparent;border-radius:6px;color:var(--muted);font-size:14px;line-height:1;opacity:0;transition:opacity .12s}
+.trow:hover .star,.star:focus-visible{opacity:.7}
+.star:hover{opacity:1;background:var(--sunk);color:var(--star)}
+.trow.fav .star{opacity:1;color:var(--star)}
+@media (hover:none){.star{opacity:.5}}
+.facet .tag em{font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
 .toggle-rail{display:none}
 @media (max-width:760px){.toggle-rail{display:inline-block}}
 
@@ -286,7 +294,9 @@ const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}};
 state.order=[...Object.keys(GROUPS),"year"];state.tagSort={year:"za"};state.extra={};state.adding=null;state.focusNew=false;
 try{const o=JSON.parse(localStorage.getItem(ORDER_KEY));if(Array.isArray(o)){const known=o.filter(g=>state.order.includes(g));state.order=[...known,...state.order.filter(g=>!known.includes(g))];}}catch(e){}
 try{const s=JSON.parse(localStorage.getItem(SORT_KEY));if(s&&typeof s==="object")state.tagSort={...state.tagSort,...s};}catch(e){}
-const SORTS={count:["Most","most photos first"],az:["A–Z","A to Z"],za:["Z–A","Z to A"]};
+const SORTS={az:["A–Z","A to Z"],za:["Z–A","Z to A"],count:["Most","most photos first"]};
+state.favTags=new Set();
+try{const f=JSON.parse(localStorage.getItem("favTags"));if(Array.isArray(f))state.favTags=new Set(f);}catch(e){}
 const label=g=>GROUPS[g]||"Year";
 const GRIP='<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="2.5" cy="3" r="1.3"/><circle cx="7.5" cy="3" r="1.3"/><circle cx="2.5" cy="7" r="1.3"/><circle cx="7.5" cy="7" r="1.3"/><circle cx="2.5" cy="11" r="1.3"/><circle cx="7.5" cy="11" r="1.3"/></svg>';
 const $=id=>document.getElementById(id);
@@ -319,8 +329,10 @@ function renderRail(list){
   const total=tally(photos),counts=tally(list);
   for(const g in state.extra) for(const t of state.extra[g]) (total[g]??={})[t]??=0;
   $("rail").innerHTML=state.order.map(g=>{
-    const m=state.tagSort[g]||"count",tg=total[g]||{};
-    const entries=Object.keys(tg).sort((a,b)=>m==="az"?a.localeCompare(b,undefined,{numeric:true}):m==="za"?b.localeCompare(a,undefined,{numeric:true}):(tg[b]-tg[a])||a.localeCompare(b));
+    const m=state.tagSort[g]||"az",tg=total[g]||{};
+    const isFav=t=>state.favTags.has(g+"|"+t);
+    const entries=Object.keys(tg).sort((a,b)=>(isFav(b)-isFav(a))||(m==="az"?a.localeCompare(b,undefined,{numeric:true}):m==="za"?b.localeCompare(a,undefined,{numeric:true}):(tg[b]-tg[a])||a.localeCompare(b)));
+    const nFav=entries.filter(isFav).length;
     const shut=state.collapsed.has(g),nOn=state.filters.filter(f=>f.g===g).length;
     const L=label(g);
     return `<section class="grp" data-grp="${g}" style="--c:${COLORS[g]}"><h3>`+
@@ -330,8 +342,9 @@ function renderRail(list){
       (g!=="year"?`<button class="hbtn" data-add="${g}" title="Add a tag to ${L}" aria-label="Add a tag to ${L}">+</button>`:"")+`</h3>`+
       (state.adding===g?`<form class="newtag" data-newtag="${g}"><input id="newtag-${g}" placeholder="New ${L.toLowerCase()} tag" autocomplete="off" aria-label="New ${L} tag"><button class="btn primary">Add</button></form>`:"")+
       `<div class="facet"${shut?" hidden":""}>`+
-      (entries.length?entries.map(t=>{const on=state.filters.some(f=>f.g===g&&f.t===t);const n=counts[g]?.[t]||0;
-        return `<button class="${on?"on":""}${!n&&!on?" zero":""}" data-g="${g}" data-t="${t}" aria-pressed="${on}"${!n&&!on?` disabled title="${tg[t]?"No photos match with the current filters":"No photos have this tag yet"}"`:""}><span>${t}</span><em>${n}</em></button>`;}).join(""):`<span class="hint" style="padding:4px 8px">No tags yet. Use + to add one.</span>`)+`</div></section>`;
+      (entries.length?entries.map((t,i)=>{const on=state.filters.some(f=>f.g===g&&f.t===t);const n=counts[g]?.[t]||0;const fav=isFav(t);
+        return `<div class="trow${fav?" fav":""}${fav&&i===nFav-1&&nFav<entries.length?" lastfav":""}"><button class="tag${on?" on":""}${!n&&!on?" zero":""}" data-g="${g}" data-t="${t}" aria-pressed="${on}"${!n&&!on?` disabled title="${tg[t]?"No photos match with the current filters":"No photos have this tag yet"}"`:""}><span>${t}</span><em>${n}</em></button>`+
+          `<button class="star" data-star="${g}|${t}" aria-pressed="${fav}" aria-label="${fav?"Remove":"Add"} ${t} ${fav?"from":"to"} favorites" title="${fav?"Unfavorite":"Favorite: keep at the top"}">${fav?"★":"☆"}</button></div>`;}).join(""):`<span class="hint" style="padding:4px 8px">No tags yet. Use + to add one.</span>`)+`</div></section>`;
   }).join("")+(state.adding==="__cat"?`<form class="newtag" data-newcat><input id="newcat" placeholder="Category name, e.g. Activities" autocomplete="off" aria-label="New category name"><button class="btn primary">Add</button></form>`:`<button class="link addcat" data-addcat>+ Add category</button>`);
   if(state.focusNew){state.focusNew=false;$("rail").querySelector(".newtag input")?.focus();}
 }
@@ -411,8 +424,10 @@ $("impStart").addEventListener("click",()=>{
     if(i<lis.length){i++;setTimeout(step,600);}else $("impDone").hidden=false;})();
 });
 $("rail").addEventListener("click",e=>{
+  const st=e.target.closest("[data-star]");
+  if(st){const k=st.dataset.star;state.favTags.has(k)?state.favTags.delete(k):state.favTags.add(k);save("favTags",[...state.favTags]);render();$("rail").querySelector(`[data-star="${CSS.escape(k)}"]`)?.focus();return;}
   const so=e.target.closest("[data-sort]");
-  if(so){const g=so.dataset.sort,ks=Object.keys(SORTS);state.tagSort[g]=ks[(ks.indexOf(state.tagSort[g]||"count")+1)%ks.length];save(SORT_KEY,state.tagSort);return render();}
+  if(so){const g=so.dataset.sort,ks=Object.keys(SORTS);state.tagSort[g]=ks[(ks.indexOf(state.tagSort[g]||"az")+1)%ks.length];save(SORT_KEY,state.tagSort);return render();}
   const ad=e.target.closest("[data-add]");
   if(ad){const g=ad.dataset.add;state.adding=state.adding===g?null:g;state.focusNew=true;state.collapsed.delete(g);return render();}
   if(e.target.closest("[data-addcat]")){state.adding="__cat";state.focusNew=true;return render();}
