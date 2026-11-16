@@ -1,5 +1,6 @@
-# Generates docs/category-library.js. Run from the repo root: python3 docs/build-category-library.py 1000
-import json
+# Generates docs/category-library.js. Run from the repo root: python3 docs/build-category-library.py 5000
+# Core curated names live below; the larger generated lists live in docs/category_data_extra.py.
+import json, os
 ICONS={
 "people":'<path d="M16 19v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1"/><circle cx="10" cy="7" r="3.5"/><path d="M20 19v-1a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
 "person":'<circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/>',
@@ -161,7 +162,8 @@ if N:
   MUST="Birthdays|Vacations|Holidays|Kids|Dogs|Cats|Concerts|Weddings|Thanksgiving|Easter|Christmas|Hiking|Work|School|Receipts|Documents|Friends|Mom|Dad|Babies|Gardening|Recipes|Cars|Home|Art|Music|Movies|Games|Fitness|Church|Funeral|Party|Grandparents|Anniversaries|Road trip|Sunsets|Snow|Fall|Summer|Winter|Spring|Flowers|Nature|Mountains|Ocean|Lakes|Pool|Selfies|Portraits|Family photos|Vintage|Scanned photos|Memes|Funny|Coworkers|Neighbors|Restaurants|Coffee|Wine|Parties|Graduation|Prom|Camping|Fishing|Boats|Biking|Running|Yoga|Soccer|Baseball|Basketball|Football|Golf|Crafts|DIY|Shopping|Fashion|Outfits|Costumes|Health|Hospital|Baby shower|Pregnancy|Disney|Cruise|Europe|Zoo|Wildlife|Horses|Birds|Farm|City|Architecture|Night|Fireworks|Weather|Screenshots|Texts|Junk|Duplicates|Halloween|New Year's Eve|Hanukkah|Fourth of July|Valentine's Day|Mother's Day|Father's Day|Diwali|Eid|Passover|Family|Pets|Travel|Beach|Food|Sports|Old photos".split("|")
   byname={n:[n,ic] for n,ic in lib}
   picked=[byname[m] for m in MUST if m in byname];i=0
-  while len(picked)<N:
+  CORE=len(lib)
+  while len(picked)<CORE:
     added=False
     for ic in groups:
       if i<len(groups[ic]) and len(picked)<N:
@@ -169,8 +171,17 @@ if N:
         if groups[ic][i] not in picked: picked.append(groups[ic][i])
     if not added: break
     i+=1
-  lib=picked  # most common first: priority names, then round-robin by group
-  js="/* Built-in category library: "+str(len(lib))+" names people commonly use, each with an icon.\n   Hidden from the user. Used to suggest names while typing a new category and to auto-assign its icon. */\n"
+  # Curated core first (priority names, then round-robin by group), then the extra lists from category_data_extra.py.
+  sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
+  import category_data_extra as X
+  have={n.lower() for n,_ in picked}
+  for n,ic in X.all_extra():
+    assert ic in ICONS,(n,ic)
+    if len(picked)>=N: break
+    if n.lower() in have: continue
+    have.add(n.lower());picked.append([n,ic])
+  lib=picked
+  js="/* Built-in category library: "+str(len(lib))+" names people commonly use, each with an icon, most common first.\n   Hidden from the user. Used to suggest names while typing a new category and to auto-assign its icon. */\n"
   js+="window.CATEGORY_ICONS="+json.dumps(ICONS,ensure_ascii=False,indent=0)+";\n"
   js+="window.CATEGORY_LIBRARY="+json.dumps(lib,ensure_ascii=False,separators=(",",":"))+";\n"
   open(out,"w").write(js);print("wrote",len(lib))

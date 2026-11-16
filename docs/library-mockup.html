@@ -434,20 +434,26 @@ const iconSvg=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 const catIcon=g=>iconSvg(state.icons[g]||g);
 const words=s=>s.toLowerCase().split(/[\s&/'’,-]+/).filter(Boolean);
 const stem=w=>w.replace(/(ies)$/,"y").replace(/s$/,"");
+// Precomputed once so matching stays instant across thousands of names.
+const norm=s=>s.toLowerCase().replace(/['’]/g,""); // "Kids' soccer" matches "kids s"
+const LIB_L=LIB.map(([n])=>norm(n)),LIB_RAW=LIB_L.map(words),LIB_W=LIB_RAW.map(ws=>ws.map(stem));
 // Best icon for any name: exact library match, then a shared word, last word first ("Grandpa's farm" -> farm), else a plain tag.
 function iconFor(name){
   const l=name.trim().toLowerCase(),ex=LIB.find(([n])=>n.toLowerCase()===l);if(ex)return ex[1];
   const ws=words(l).filter(w=>w.length>2).map(stem).reverse(); // last word is usually the main noun
-  for(const w of ws){const m=LIB.find(([n])=>words(n).map(stem).includes(w));if(m)return m[1];}
+  for(const w of ws){const i=LIB_W.findIndex(x=>x.includes(w));if(i>=0)return LIB[i][1];}
   return "tag";
 }
 // Up to 6 library names for what's typed: starts-with first, then word starts, then contains. Skips categories you already have.
 function suggestCats(q){
-  q=q.trim().toLowerCase();if(!q)return[];
-  const have=new Set(Object.values(GROUPS).map(x=>x.toLowerCase())),a=[],b=[],c=[];
-  for(const e of LIB){const l=e[0].toLowerCase();if(have.has(l))continue;
-    if(l.startsWith(q))a.push(e);else if(words(l).some(w=>w.startsWith(q)))b.push(e);else if(q.length>2&&l.includes(q))c.push(e);}
-  return [...a,...b,...c].slice(0,6);
+  q=norm(q.trim());if(!q)return[];
+  const qw=words(q),have=new Set(Object.values(GROUPS).map(norm)),a=[],b=[],c=[],d=[];
+  LIB.forEach((e,i)=>{const l=LIB_L[i];if(have.has(l))return;
+    if(l.startsWith(q))a.push(e);
+    else if(LIB_RAW[i].some(w=>w.startsWith(q)))b.push(e);
+    else if(qw.length>1&&qw.every(x=>LIB_RAW[i].some(w=>w.startsWith(x))))c.push(e); // "kids soc" -> Kids' soccer
+    else if(q.length>2&&l.includes(q))d.push(e);});
+  return [...a,...b,...c,...d].slice(0,6);
 }
 function updateCatSugg(q){
   const ul=$("catSugg");if(!ul)return;const list=suggestCats(q);state.suggIdx=-1;
