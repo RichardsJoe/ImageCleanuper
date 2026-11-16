@@ -62,6 +62,8 @@ select.btn{padding-right:8px}
 .facet button{display:flex;justify-content:space-between;gap:8px;border:0;background:transparent;text-align:left;padding:5px 8px;border-radius:6px}
 .facet button:hover{background:var(--sunk)}
 .facet button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.facet button.zero{color:var(--muted);opacity:.45;cursor:default}
+.facet button.zero:hover{background:transparent}
 .facet button em{font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
 .toggle-rail{display:none}
 @media (max-width:760px){.toggle-rail{display:inline-block}}
@@ -274,16 +276,17 @@ function visible(){
 }
 
 function renderRail(list){
-  const counts={};
-  list.forEach(p=>allTags(p).forEach(([g,t])=>{(counts[g]??={})[t]=(counts[g][t]||0)+1;}));
+  // The list of tags is built from ALL photos in a fixed order, so it never moves.
+  // Only the counts change; tags with no matching photos are greyed out, not removed.
+  const tally=ps=>{const c={};ps.forEach(p=>allTags(p).forEach(([g,t])=>{(c[g]??={})[t]=(c[g][t]||0)+1;}));return c;};
+  const total=tally(photos),counts=tally(list);
   const groups=[...Object.keys(GROUPS),"year"];
   $("rail").innerHTML=groups.map(g=>{
-    const entries=Object.entries(counts[g]||{}).sort((a,b)=>g==="year"?b[0].localeCompare(a[0]):b[1]-a[1]);
-    state.filters.filter(f=>f.g===g&&!counts[g]?.[f.t]).forEach(f=>entries.unshift([f.t,0]));
+    const entries=Object.keys(total[g]||{}).sort((a,b)=>g==="year"?b.localeCompare(a):(total[g][b]-total[g][a])||a.localeCompare(b));
     if(!entries.length) return "";
     return `<h3 style="--c:${COLORS[g]}"><i></i>${GROUPS[g]||"Year"}</h3><div class="facet">`+
-      entries.map(([t,n])=>{const on=state.filters.some(f=>f.g===g&&f.t===t);
-        return `<button class="${on?"on":""}" data-g="${g}" data-t="${t}" aria-pressed="${on}"><span>${t}</span><em>${n}</em></button>`;}).join("")+`</div>`;
+      entries.map(t=>{const on=state.filters.some(f=>f.g===g&&f.t===t);const n=counts[g]?.[t]||0;
+        return `<button class="${on?"on":""}${!n&&!on?" zero":""}" data-g="${g}" data-t="${t}" aria-pressed="${on}"${!n&&!on?' disabled title="No photos match with the current filters"':""}><span>${t}</span><em>${n}</em></button>`;}).join("")+`</div>`;
   }).join("");
 }
 function renderBar(list){
