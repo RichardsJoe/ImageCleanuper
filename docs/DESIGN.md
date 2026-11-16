@@ -15,6 +15,9 @@ Rules agreed while reviewing the mockup. New screens follow these.
 - An icon button whose inline box is open shows the accent colour until it closes.
 - Inline add boxes open right under their header and get focus straight away. **Every add box can be cancelled**: Enter saves; Esc, the small × after the Add button, or clicking the same `+` again cancels; clicking away from an empty box closes it.
 - Inputs and their focus rings are never clipped by the edge of a scrolling column.
+- **Managing a category** uses a `⋯` button on its header that opens a small options box under it: Rename (inline box, prefilled), Color swatches, and Delete category… Delete always shows an inline confirmation that says what happens ("Delete People and its 5 tags? The tags are removed from 19 photos. The photos themselves are not touched."). Year is automatic and has no menu.
+- Destructive actions use the danger colour and never happen in one click.
+- **Esc closes the topmost thing first**: full-size viewer, then any open menu or box, then the details panel.
 - Full text buttons are only for the main page actions ("+ Add folder", "Start tagging", "Done").
 
 ### Lists of tags
@@ -33,6 +36,7 @@ Rules agreed while reviewing the mockup. New screens follow these.
 
 ### Photo details
 - Opening a photo docks its details as a column on the right. **The grid stays usable**: click any other photo to switch to it in one click, with no dimmed background and nothing to close first. The open photo is outlined in the grid.
+- **Click the preview to open the photo full size** (hover shows "Open full size"). The viewer fills the screen on a dark background, with ← / → buttons and arrow keys to step through the results, and × or Esc to go back. The details panel follows along.
 - Prev / Next buttons and the left/right arrow keys step through the current results. Esc or Close hides the panel. On a phone the panel fills the screen.
 
 ### Search

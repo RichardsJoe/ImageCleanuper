@@ -7,7 +7,7 @@
 :root{
   --bg:#f5f6f8; --surface:#ffffff; --sunk:#eceef2; --line:#dde0e6;
   --fg:#1b1f27; --muted:#5d6472; --accent:#2a5bd7; --accent-soft:#e3eafb; --accent-fg:#ffffff;
-  --star:#d99a00;
+  --star:#d99a00; --danger:#c2362b;
   --people:#b4458a; --places:#1f7f6b; --events:#c4572a; --things:#5b5fc7; --auto:#6b7280;
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --body:"Figtree",ui-sans-serif,system-ui,sans-serif;
@@ -16,12 +16,12 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#12151b; --surface:#1a1e26; --sunk:#232833; --line:#2f3542;
   --fg:#e8eaef; --muted:#9aa2b1; --accent:#7ea2ff; --accent-soft:#25304a; --accent-fg:#0d1220;
-  --star:#f2b928; --people:#e58cc0; --places:#5cc7ad; --events:#f0905f; --things:#a4a7ff; --auto:#9aa2b1;
+  --star:#f2b928; --people:#e58cc0; --places:#5cc7ad; --events:#f0905f; --things:#a4a7ff; --auto:#9aa2b1; --danger:#e5675c;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#12151b; --surface:#1a1e26; --sunk:#232833; --line:#2f3542;
   --fg:#e8eaef; --muted:#9aa2b1; --accent:#7ea2ff; --accent-soft:#25304a; --accent-fg:#0d1220;
-  --star:#f2b928; --people:#e58cc0; --places:#5cc7ad; --events:#f0905f; --things:#a4a7ff; --auto:#9aa2b1;
+  --star:#f2b928; --people:#e58cc0; --places:#5cc7ad; --events:#f0905f; --things:#a4a7ff; --auto:#9aa2b1; --danger:#e5675c;
   color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -107,6 +107,18 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 .newtag{display:flex;align-items:center;gap:4px;margin:0 0 6px 22px}
 .newtag input{flex:1;min-width:0;border:1px solid var(--accent);background:var(--surface);border-radius:6px;padding:5px 8px;margin-right:2px}
 .newtag input:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.menu,.confirm{margin:0 0 8px 22px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
+.menu>button{border:0;background:transparent;text-align:left;padding:6px 8px;border-radius:6px}
+.menu>button:hover{background:var(--sunk)}
+.menu .danger{color:var(--danger)}
+.swatches{display:flex;align-items:center;gap:6px;padding:6px 8px;flex-wrap:wrap}
+.swatches span{color:var(--muted);font-size:12px;margin-right:4px}
+.sw{width:18px;height:18px;border-radius:50%;border:2px solid transparent;background:var(--sw);padding:0;box-shadow:inset 0 0 0 2px var(--surface)}
+.sw.on{border-color:var(--fg)}
+.confirm{padding:10px 12px;gap:10px;border-color:var(--danger)}
+.confirm p{margin:0;font-size:13px}
+.confirm div{display:flex;gap:6px}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
 .newtag .cancel{font-size:18px;font-weight:400;height:28px;width:28px}
 .newtag .btn{padding:4px 10px}
 .railtop{position:sticky;top:-20px;z-index:3;background:var(--bg);display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:-20px;padding-block:16px 8px;border-bottom:1px solid var(--line);margin-bottom:12px}
@@ -170,6 +182,18 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 /* Photo details dock as a right-hand column; the grid stays clickable so you can jump between photos. */
 .main.has-panel{grid-template-columns:var(--rail-w,280px) 14px minmax(0,1fr) min(400px,38vw);max-width:none}
 .panel{min-width:0;background:var(--surface);border-left:1px solid var(--line);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding:16px 16px 32px 20px;display:flex;flex-direction:column;gap:16px}
+.open-full{border:0;padding:0;cursor:zoom-in;position:relative;display:block}
+.open-full span{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:3px 8px;border-radius:6px;opacity:0;transition:opacity .15s}
+.open-full:hover span,.open-full:focus-visible span{opacity:1}
+@media (hover:none){.open-full span{opacity:1}}
+.viewer{position:fixed;inset:0;z-index:40;background:#0b0c10;color:#fff;display:flex;flex-direction:column;padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.vtop{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.vtop span{font-size:14px;color:#d6d9e0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vstage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:12px}
+.vimg{aspect-ratio:4/3;width:min(100%,calc((100vh - 120px) * 4 / 3));max-height:100%;border-radius:4px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.vbtn{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:20px;line-height:1}
+.vbtn:hover{background:rgba(255,255,255,.24)}
+@media (max-width:600px){.vside{position:absolute;bottom:calc(20px + env(safe-area-inset-bottom,0px))}#vprev{left:max(16px,env(safe-area-inset-left,0px))}#vnext{right:max(16px,env(safe-area-inset-right,0px))}}
 .tile.current{box-shadow:0 0 0 3px var(--fg)}
 .tile.current.sel{box-shadow:0 0 0 3px var(--accent)}
 @media (max-width:760px){
@@ -265,6 +289,10 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 
 <div class="scrim" id="scrim" hidden></div>
 <div class="toast" id="toast" hidden></div>
+<div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="Photo viewer">
+  <div class="vtop"><span id="vcap"></span><button class="vbtn" id="vclose" title="Close (Esc)" aria-label="Close viewer">×</button></div>
+  <div class="vstage"><button class="vbtn vside" id="vprev" title="Previous (←)" aria-label="Previous photo">←</button><div class="vimg" id="vimg" role="img"></div><button class="vbtn vside" id="vnext" title="Next (→)" aria-label="Next photo">→</button></div>
+</div>
 
 <div class="scrim" id="iscrim" hidden></div>
 <section class="modal" id="imp" hidden aria-label="Add photos">
@@ -391,7 +419,8 @@ function renderRail(list){
       `<button class="grip" data-grip="${g}" title="Drag to reorder" aria-label="Move ${L}. Drag, or press the up and down arrow keys">${GRIP}</button>`+
       `<button class="ghead" data-toggle="${g}" aria-expanded="${!shut}"><svg class="caret" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 4.5 3 3 3-3"/></svg><i></i>${L}<em>${shut?entries.length:""}</em></button>`+
       `<button class="hbtn" data-sort="${g}" title="Tags sorted ${SORTS[m][1]}. Click to change" aria-label="Sort ${L} tags. Now ${SORTS[m][1]}">${SORTS[m][0]}</button>`+
-      (g!=="year"?`<button class="hbtn" data-add="${g}" title="Add a tag to ${L}" aria-label="Add a tag to ${L}" aria-expanded="${state.adding===g}">+</button>`:"")+`</h3>`+
+      (g!=="year"?`<button class="hbtn" data-add="${g}" title="Add a tag to ${L}" aria-label="Add a tag to ${L}" aria-expanded="${state.adding===g}">+</button>`+
+        `<button class="hbtn more" data-menu="${g}" title="Rename, color or delete" aria-label="${L} options" aria-expanded="${state.menu===g}"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="3" cy="7" r="1.4"/><circle cx="7" cy="7" r="1.4"/><circle cx="11" cy="7" r="1.4"/></svg></button>`:"")+`</h3>`+catExtras(g,L)+
       (state.adding===g?`<form class="newtag" data-newtag="${g}"><input id="newtag-${g}" placeholder="New ${L.toLowerCase()} tag" autocomplete="off" aria-label="New ${L} tag"><button class="btn primary">Add</button><button type="button" class="hbtn cancel" data-cancel title="Cancel (Esc)" aria-label="Cancel">×</button></form>`:"")+
       `<div class="facet"${shut?" hidden":""}>`+
       (entries.length?entries.map((t,i)=>{const on=state.filters.some(f=>f.g===g&&f.t===t);const n=counts[g]?.[t]||0;const fav=isFav(t);
@@ -399,6 +428,28 @@ function renderRail(list){
           `<button class="star" data-star="${g}|${t}" aria-pressed="${fav}" aria-label="${fav?"Remove":"Add"} ${t} ${fav?"from":"to"} favorites" title="${fav?"Unfavorite":"Favorite: keep at the top"}">${fav?"★":"☆"}</button></div>`;}).join(""):`<span class="hint" style="padding:4px 8px">No tags yet. Use + to add one.</span>`)+`</div></section>`;
   }).join("");
   if(state.focusNew){state.focusNew=false;$("rail").querySelector(".newtag input")?.focus();}
+}
+// Inline boxes under a category header: options menu, rename box, delete confirmation.
+const PALETTE=["var(--people)","var(--places)","var(--events)","var(--things)","var(--accent)","var(--star)","var(--auto)"];
+function catExtras(g,L){
+  if(state.menu===g)return `<div class="menu" role="menu" aria-label="${L} options">`+
+    `<button role="menuitem" data-rename="${g}">Rename</button>`+
+    `<div class="swatches" role="group" aria-label="Color"><span>Color</span>${PALETTE.map(c=>`<button class="sw${COLORS[g]===c?" on":""}" data-color="${g}|${c}" style="--sw:${c}" aria-label="Use this color" aria-pressed="${COLORS[g]===c}"></button>`).join("")}</div>`+
+    `<button role="menuitem" class="danger" data-delask="${g}">Delete category…</button></div>`;
+  if(state.renaming===g)return `<form class="newtag" data-renameform="${g}"><input id="rename-${g}" value="${L}" autocomplete="off" aria-label="Rename ${L}"><button class="btn primary">Save</button><button type="button" class="hbtn cancel" data-cancel title="Cancel (Esc)" aria-label="Cancel">×</button></form>`;
+  if(state.confirmDel===g){
+    const nt=new Set([...photos.flatMap(p=>p.tags[g]||[]),...(state.extra[g]||[])]).size,np=photos.filter(p=>p.tags[g]?.length).length;
+    return `<div class="confirm" role="alertdialog" aria-label="Delete ${L}"><p>Delete <strong>${L}</strong> and its ${nt} tag${nt===1?"":"s"}? The tags are removed from ${np} photo${np===1?"":"s"}. The photos themselves are not touched.</p><div><button class="btn danger" data-del="${g}">Delete</button><button class="btn" data-cancel>Cancel</button></div></div>`;
+  }
+  return "";
+}
+function closeInline(){state.adding=null;state.menu=null;state.renaming=null;state.confirmDel=null;}
+function deleteCategory(g){
+  const L=label(g);delete GROUPS[g];photos.forEach(p=>delete p.tags[g]);
+  state.order=state.order.filter(x=>x!==g);state.filters=state.filters.filter(f=>f.g!==g);
+  state.favTags=new Set([...state.favTags].filter(k=>!k.startsWith(g+"|")));delete state.extra[g];state.collapsed.delete(g);delete state.tagSort[g];
+  save(ORDER_KEY,state.order);save("favTags",[...state.favTags]);save(SORT_KEY,state.tagSort);
+  closeInline();toast(`Deleted “${L}”. Your photos were not changed.`);
 }
 function renderBar(list){
   // Selected tags live inside the search box as chips; the bar just shows the count.
@@ -415,7 +466,7 @@ function renderGrid(list){
     <span class="ph" style="${art(p)}"></span>
     <span class="chk" data-chk="${p.id}" role="checkbox" aria-checked="${state.sel.has(p.id)}" aria-label="Select"></span>
     ${p.fav?'<span class="fav">★</span>':""}${p.added?'<span class="new">New</span>':""}
-    <span class="meta"><span>${[...p.tags.people,...p.tags.events].slice(0,2).join(" · ")||p.tags.things[0]||p.file}</span><span>${fmt(p.date)}</span></span>
+    <span class="meta"><span>${[...(p.tags.people||[]),...(p.tags.events||[])].slice(0,2).join(" · ")||p.tags.things?.[0]||p.file}</span><span>${fmt(p.date)}</span></span>
   </button>`).join("");
 }
 function renderSel(){
@@ -432,9 +483,9 @@ function renderPanel(){
   const sugg=p.sugg.length?`<div class="tg"><h4>Suggested</h4><div class="chips">${p.sugg.map(t=>`<span class="chip sugg">${t}<button data-accept="${t}" aria-label="Add ${t}">+</button><button data-reject="${t}" aria-label="Dismiss ${t}">×</button></span>`).join("")}</div><p class="hint">Auto-tagging isn't sure about these. Tap + to keep or × to dismiss.</p></div>`:"";
   $("panel").innerHTML=`
     <div class="ptop"><h2>${p.file}</h2><button class="btn" id="closeP">Close</button></div>
-    <span class="ph" style="${art(p)}"></span>
+    <button class="ph open-full" id="openFull" style="${art(p)}" title="Open full size" aria-label="Open ${p.file} full size"><span>Open full size</span></button>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="favP">${p.fav?"★ Favorited":"☆ Favorite"}</button><button class="btn" id="prevP">← Prev</button><button class="btn" id="nextP">Next →</button></div>
-    <dl class="facts"><dt>Taken</dt><dd>${fmt(p.date)}</dd><dt>Place</dt><dd>${p.tags.places[0]||"Unknown"}</dd><dt>File</dt><dd style="font-family:var(--mono);font-size:12px;overflow-wrap:anywhere">D:\\Photos\\${year(p)}\\${p.file}</dd></dl>
+    <dl class="facts"><dt>Taken</dt><dd>${fmt(p.date)}</dd><dt>Place</dt><dd>${p.tags.places?.[0]||"Unknown"}</dd><dt>File</dt><dd style="font-family:var(--mono);font-size:12px;overflow-wrap:anywhere">D:\\Photos\\${year(p)}\\${p.file}</dd></dl>
     ${sugg}${groups}
     <div class="tg"><h4>Add a tag</h4>
       <form class="addtag" id="addForm"><input id="newTag" placeholder="e.g. Grandpa, Paris, Graduation" list="tagList"><select id="newGroup" class="btn" aria-label="Tag type">${Object.entries(GROUPS).map(([g,l])=>`<option value="${g}">${l}</option>`).join("")}</select><button class="btn primary">Add</button></form>
@@ -445,15 +496,25 @@ function openP(id){
   state.open=id;$("panel").hidden=false;document.querySelector(".main").classList.add("has-panel");render();
   document.querySelector(".tile.current")?.scrollIntoView({block:"nearest"});
 }
+function drawViewer(){const p=photos[state.open];if(!p)return closeViewer();$("vimg").style.cssText=art(p);$("vimg").setAttribute("aria-label",p.file);
+  $("vcap").textContent=[p.file,fmt(p.date),p.tags.places?.[0]].filter(Boolean).join("  ·  ");}
+function openViewer(){$("viewer").hidden=false;drawViewer();$("vclose").focus();}
+function closeViewer(){$("viewer").hidden=true;$("openFull")?.focus();}
+function stepPhoto(d){const l=visible(),i=l.findIndex(x=>x.id===state.open);if(i<0||!l.length)return;openP(l[(i+d+l.length)%l.length].id);if(!$("viewer").hidden)drawViewer();}
+$("vclose").addEventListener("click",closeViewer);
+$("vprev").addEventListener("click",()=>stepPhoto(-1));
+$("vnext").addEventListener("click",()=>stepPhoto(1));
+$("viewer").addEventListener("click",e=>{if(e.target.id==="viewer"||e.target.classList.contains("vstage"))closeViewer();});
 function closeP(){if(state.open==null)return;state.open=null;$("panel").hidden=true;document.querySelector(".main").classList.remove("has-panel");render();}
 // With a photo open, left/right arrow keys step through the photos (unless you're typing).
 document.addEventListener("keydown",e=>{
   if(state.open==null||e.target.closest("input,select,textarea")||(e.key!=="ArrowLeft"&&e.key!=="ArrowRight"))return;
-  const l=visible(),i=l.findIndex(x=>x.id===state.open);if(i<0)return;
-  e.preventDefault();openP(l[(i+(e.key==="ArrowRight"?1:l.length-1))%l.length].id);
+  e.preventDefault();stepPhoto(e.key==="ArrowRight"?1:-1);
 });
 function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(t._h);t._h=setTimeout(()=>t.hidden=true,1800);}
-function guessGroup(t){for(const p of photos)for(const g in GROUPS)if(p.tags[g].includes(t))return g;for(const g in state.extra)if(state.extra[g].has(t))return g;return "things";}
+function guessGroup(t){for(const p of photos)for(const g in GROUPS)if(p.tags[g]?.includes(t))return g;for(const g in state.extra)if(GROUPS[g]&&state.extra[g].has(t))return g;return GROUPS.things?"things":Object.keys(GROUPS)[0];}
+// Close the options menu when clicking anywhere outside it.
+document.addEventListener("click",e=>{if(state.menu&&!e.target.closest(".menu,[data-menu]")){state.menu=null;render();}});
 
 $("q").addEventListener("input",e=>{state.q=e.target.value;render();});
 function clearSearch(){state.q="";$("q").value="";state.filters=[];render();$("q").focus();}
@@ -504,7 +565,17 @@ $("rail").addEventListener("click",e=>{
   if(so){const g=so.dataset.sort,ks=Object.keys(SORTS);state.tagSort[g]=ks[(ks.indexOf(state.tagSort[g]||"az")+1)%ks.length];save(SORT_KEY,state.tagSort);return render();}
   const ad=e.target.closest("[data-add]");
   if(ad){const g=ad.dataset.add;state.adding=state.adding===g?null:g;state.focusNew=true;state.collapsed.delete(g);return render();}
-  if(e.target.closest("[data-cancel]")){state.adding=null;return render();}
+  if(e.target.closest("[data-cancel]")){closeInline();return render();}
+  const mn=e.target.closest("[data-menu]");
+  if(mn){const g=mn.dataset.menu,was=state.menu===g;closeInline();state.menu=was?null:g;return render();}
+  const rn=e.target.closest("[data-rename]");
+  if(rn){closeInline();state.renaming=rn.dataset.rename;state.focusNew=true;render();$("rail").querySelector(".newtag input")?.select();return;}
+  const co=e.target.closest("[data-color]");
+  if(co){const[g,c]=co.dataset.color.split("|");COLORS[g]=c;return render();}
+  const da=e.target.closest("[data-delask]");
+  if(da){closeInline();state.confirmDel=da.dataset.delask;render();$("rail").querySelector("[data-del]")?.focus();return;}
+  const dl=e.target.closest("[data-del]");
+  if(dl){deleteCategory(dl.dataset.del);return render();}
   if(e.target.closest("[data-addcat]")){state.adding=state.adding==="__cat"?null:"__cat";state.focusNew=true;return render();}
   if(e.target.closest("[data-grip]"))return;
   const h=e.target.closest("[data-toggle]");
@@ -526,6 +597,7 @@ function addCategory(name){
 }
 $("rail").addEventListener("submit",e=>{
   e.preventDefault();const f=e.target,v=f.querySelector("input").value.replace(/[<>"&`]/g,"").trim();
+  if(f.dataset.renameform){if(v)GROUPS[f.dataset.renameform]=v;closeInline();return render();}
   state.adding=null;
   if(v&&f.dataset.newtag)addTag(f.dataset.newtag,v);
   else if(v&&f.hasAttribute("data-newcat"))addCategory(v);
@@ -538,7 +610,7 @@ $("rail").addEventListener("focusout",e=>{
   setTimeout(()=>{if(state.adding&&!document.activeElement?.closest(".newtag")){state.adding=null;render();}},0);
 });
 $("rail").addEventListener("keydown",e=>{
-  if(e.key==="Escape"&&e.target.closest(".newtag")){e.stopPropagation();state.adding=null;return render();}
+  if(e.key==="Escape"&&(e.target.closest(".newtag,.menu,.confirm")||state.menu||state.confirmDel)){e.stopPropagation();closeInline();return render();}
   const gr=e.target.closest("[data-grip]");
   if(gr&&(e.key==="ArrowUp"||e.key==="ArrowDown")){e.preventDefault();moveGroup(gr.dataset.grip,e.key==="ArrowUp"?-1:1);}
 });
@@ -578,17 +650,24 @@ $("grid").addEventListener("click",e=>{
 $("bulkClear").addEventListener("click",()=>{state.sel.clear();render();});
 $("bulkFav").addEventListener("click",()=>{state.sel.forEach(id=>photos[id].fav=true);toast(`Favorited ${state.sel.size} photos`);state.sel.clear();render();});
 $("bulkTag").addEventListener("keydown",e=>{if(e.key!=="Enter"||!e.target.value.trim())return;
-  const t=e.target.value.trim(),g=guessGroup(t);state.sel.forEach(id=>{const p=photos[id];if(!p.tags[g].includes(t))p.tags[g].push(t);});
+  const t=e.target.value.trim(),g=guessGroup(t);state.sel.forEach(id=>{const p=photos[id];p.tags[g]??=[];if(!p.tags[g].includes(t))p.tags[g].push(t);});
   toast(`Tagged ${state.sel.size} photos “${t}”`);e.target.value="";state.sel.clear();render();});
 $("scrim").addEventListener("click",closeP);
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeP();closeImp();}});
+// Esc closes the topmost thing first: viewer, then an open menu or box, then the details panel.
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape")return;
+  if(!$("viewer").hidden)return closeViewer();
+  if(state.menu||state.confirmDel||state.renaming||state.adding){closeInline();return render();}
+  closeP();closeImp();
+});
 $("panel").addEventListener("click",e=>{
   const p=photos[state.open],d=e.target.dataset;
   if(e.target.id==="closeP")return closeP();
+  if(e.target.closest("#openFull"))return openViewer();
   if(e.target.id==="favP"){p.fav=!p.fav;return render();}
   if(e.target.id==="prevP"||e.target.id==="nextP"){const l=visible();const i=l.findIndex(x=>x.id===p.id);const n=l[(i+(e.target.id==="nextP"?1:l.length-1))%l.length];if(n)openP(n.id);return;}
   if(d.untag){const[g,t]=d.untag.split("|");p.tags[g]=p.tags[g].filter(x=>x!==t);return render();}
-  if(d.accept){p.tags[guessGroup(d.accept)].push(d.accept);p.sugg=p.sugg.filter(x=>x!==d.accept);return render();}
+  if(d.accept){(p.tags[guessGroup(d.accept)]??=[]).push(d.accept);p.sugg=p.sugg.filter(x=>x!==d.accept);return render();}
   if(d.reject){p.sugg=p.sugg.filter(x=>x!==d.reject);return render();}
 });
 $("panel").addEventListener("submit",e=>{e.preventDefault();const p=photos[state.open];const t=$("newTag").value.trim();if(!t)return;
