@@ -24,6 +24,7 @@
   --star:#f2b928; --people:#e58cc0; --places:#5cc7ad; --events:#f0905f; --things:#a4a7ff; --auto:#9aa2b1;
   color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.45}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -44,10 +45,15 @@ button{cursor:pointer}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
 .top-inner{display:flex;gap:12px;align-items:center;flex-wrap:wrap;max-width:1400px;margin:0 auto}
 .brand{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:-.01em;margin:0}
-.search{flex:1 1 320px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 12px;min-width:0}
+.search{flex:1 1 320px;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px 6px 3px 12px;min-width:0;cursor:text}
 .search:focus-within{border-color:var(--accent)}
-.search svg{flex:none;color:var(--muted)}
-.search input{border:0;background:transparent;padding:10px 0;width:100%;outline:none}
+.search>svg{flex:none;color:var(--muted)}
+.tokens{display:contents}
+.search{flex-wrap:wrap}
+.search .chip{cursor:default;padding-block:2px}
+.search input{flex:1 1 120px;min-width:120px;border:0;background:transparent;padding:7px 0;outline:none}
+.clearq{flex:none;margin-left:auto;display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:var(--sunk);color:var(--muted)}
+.clearq:hover{background:var(--line);color:var(--fg)}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;font-weight:500}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 select.btn{padding-right:8px}
@@ -184,10 +190,12 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 <header class="top wrap">
   <div class="top-inner">
     <h1 class="brand">Library</h1>
-    <label class="search">
+    <div class="search" id="searchBox" role="search">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="q" type="search" placeholder="Search tags, people, places… try “mom, dad” or “emma beach”" autocomplete="off">
-    </label>
+      <div class="tokens" id="tokens"></div>
+      <input id="q" type="text" placeholder="Search tags, people, places… try “mom, dad” or “emma beach”" autocomplete="off" aria-label="Search photos">
+      <button class="clearq" id="clearQ" hidden aria-label="Clear search and filters" title="Clear (Esc)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m3.5 3.5 7 7m0-7-7 7"/></svg></button>
+    </div>
     <button class="btn toggle-rail" id="railBtn">Filters</button>
     <select class="btn" id="sort" aria-label="Sort">
       <option value="new">Newest first</option>
@@ -349,9 +357,11 @@ function renderRail(list){
   if(state.focusNew){state.focusNew=false;$("rail").querySelector(".newtag input")?.focus();}
 }
 function renderBar(list){
-  const chips=state.filters.map((f,i)=>`<span class="chip" style="--c:${COLORS[f.g]}">${f.t}<button data-rm="${i}" aria-label="Remove ${f.t}">×</button></span>`).join("");
-  $("bar").innerHTML=`<span class="count">${list.length} of ${photos.length} photos</span>${chips}`+
-    (state.filters.length||state.q?`<button class="link" id="clearAll">Clear all</button>`:"");
+  // Selected tags live inside the search box as chips; the bar just shows the count.
+  $("tokens").innerHTML=state.filters.map((f,i)=>`<span class="chip" style="--c:${COLORS[f.g]}">${f.t}<button data-rm="${i}" aria-label="Remove ${f.t}">×</button></span>`).join("");
+  $("q").placeholder=state.filters.length?"Add words or tags…":"Search tags, people, places… try “mom, dad” or “emma beach”";
+  $("clearQ").hidden=!(state.filters.length||state.q);
+  $("bar").innerHTML=`<span class="count">${list.length} of ${photos.length} photos</span>`;
 }
 function renderGrid(list){
   const g=$("grid");
@@ -393,6 +403,17 @@ function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTim
 function guessGroup(t){for(const p of photos)for(const g in GROUPS)if(p.tags[g].includes(t))return g;for(const g in state.extra)if(state.extra[g].has(t))return g;return "things";}
 
 $("q").addEventListener("input",e=>{state.q=e.target.value;render();});
+function clearSearch(){state.q="";$("q").value="";state.filters=[];render();$("q").focus();}
+$("clearQ").addEventListener("click",clearSearch);
+$("q").addEventListener("keydown",e=>{
+  if(e.key==="Backspace"&&!e.target.value&&state.filters.length){state.filters.pop();render();}
+  if(e.key==="Escape"&&(state.q||state.filters.length)){e.stopPropagation();clearSearch();}
+});
+$("searchBox").addEventListener("click",e=>{
+  const rm=e.target.closest("[data-rm]");
+  if(rm){state.filters.splice(+rm.dataset.rm,1);render();return $("q").focus();}
+  if(!e.target.closest("button"))$("q").focus();
+});
 $("sort").addEventListener("change",e=>{state.sort=e.target.value;render();});
 $("railBtn").addEventListener("click",()=>$("rail").classList.toggle("open"));
 const TAGGERS=[
