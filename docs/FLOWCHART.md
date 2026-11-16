@@ -205,6 +205,8 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Accuracy check:** a round of blind questions per check (each person, Pets, Junk, categories, Holidays, Rotation, Border trim) is made after each run; wrong guesses are corrected at once; the next run scores the round. The scorecard is on Home and Finish.
 - **Report corrections:** select a photo, M moves it (to a person, holiday, category, year, Junk), Del takes it out of the folder, O shows the original; Ctrl+Z undoes. Moving or deleting photos in the library yourself counts the same way (checked at each run and sort); edited files are left alone; if most of the library vanishes at once nothing is learned and it's copied again.
 - **Settings tabs:** Folders (and Google Photos), People (rename/merge, strangers, best samples), Holidays & categories, Accuracy, Hotkeys, Claude.
+- **Claude second opinion (optional):** only the local model's unsure Pets/Junk/category checks, one small JPEG per photo, Claude Sonnet 5.5 by default with Anthropic's server-side fallback if a request is declined; key in Windows Credential Manager; monthly limit with the continue / raise / pause popup (5-minute timeout continues locally). Not used for rotation.
+- **Updates:** Check for updates opens the GitHub Releases page (the repo is private, so the app can't check by itself).
 - **Google Photos:** Takeout zips are copied into the backup (they are the backup of their photos), unpacked, and Google's sidecar dates are used.
 
 ### Parked ideas (not in the current plan)
@@ -216,7 +218,7 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 
 ## Open questions
 
-- None right now. Coding starts when you say go.
+- None. Everything in the plan is built (version 1.0.0); Enhance stays parked.
 
 ## Change log
 
@@ -242,3 +244,4 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 20. 2026-11-16 · v20: Phase 4: duplicates & bursts screen; Approve and sort copies the plan into the library (Original Scans, stable clash names, never touches your files).
 21. 2026-11-16 · v21: Finish (checked moves, Recycle Bin for removed copies, empty folders deleted, crash recovery); _Add New Photos drop folder.
 22. 2026-11-16 · v22: Accuracy check and scorecard; Report M/Del/O; hand edits in the library; Settings tabs incl. People; Google Photos import.
+23. 2026-11-16 · v23: Claude second opinion with key popup and spending limit; Check for updates; version 1.0.0.

@@ -123,8 +123,11 @@ class App(ctk.CTk):
         if locked:
             ctk.CTkLabel(bar, text="Pause the run to\nuse the other pages.", text_color=MUTED,
                          justify="left", anchor="w").pack(fill="x", padx=16, pady=(12, 0))
+        ctk.CTkButton(bar, text="Check for updates ↗", fg_color="transparent", text_color=BLUE, anchor="w",
+                      hover_color=("gray85", "gray25"), height=22, font=ctk.CTkFont(size=12),
+                      command=self._check_updates).pack(side="bottom", fill="x", padx=8, pady=(0, 14))
         ctk.CTkLabel(bar, text=f"Version {__version__}\nF1  Hotkeys", text_color=MUTED, justify="left",
-                     anchor="w").pack(side="bottom", fill="x", padx=16, pady=16)
+                     anchor="w").pack(side="bottom", fill="x", padx=16, pady=(16, 2))
         if not locked:   # nav hotkeys work on every main screen
             for keysym, fn in (("<Key-v>", self.show_review), ("<Key-p>", self.show_report),
                                ("<Key-f>", self.show_finish)):
@@ -145,6 +148,13 @@ class App(ctk.CTk):
                           width=200, height=38).pack(side="right")
             self.bind("<Return>", lambda e: cmd())
         return bar
+
+    RELEASES_URL = "https://github.com/RichardsJoe/ImageCleanuper/releases"
+
+    def _check_updates(self):
+        """The repo is private, so the app can't ask GitHub itself; your browser is already signed in."""
+        import webbrowser
+        webbrowser.open(self.RELEASES_URL)
 
     def _not_typing(self, fn):
         """Hotkeys must not fire while typing in a text box (bug trap, section 24)."""

@@ -44,4 +44,8 @@ def _run() -> int:
     t = clip.text_embeddings(m, ["a photo of a dog"])
     assert e.shape == (512,) and t.shape == (1, 512)
     print("models ok, providers:", m.providers)
+    # Claude support: the SDK and the credential store must be packaged too.
+    import anthropic
+    import keyring
+    print("claude sdk", anthropic.__version__, "· key store:", type(keyring.get_keyring()).__name__)
     return 0
