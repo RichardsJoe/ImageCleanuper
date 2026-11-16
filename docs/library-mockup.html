@@ -149,7 +149,7 @@ select.btn{padding-right:8px}
     <h1 class="brand">Library</h1>
     <label class="search">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="q" type="search" placeholder="Search tags, people, places… try “emma beach”" autocomplete="off">
+      <input id="q" type="search" placeholder="Search tags, people, places… try “mom, dad” or “emma beach”" autocomplete="off">
     </label>
     <button class="btn toggle-rail" id="railBtn">Filters</button>
     <select class="btn" id="sort" aria-label="Sort">
@@ -259,7 +259,7 @@ const art=p=>`background:linear-gradient(to bottom,${p.sky[0]},${p.sky[1]} 62%,$
 function matches(p){
   const tags=allTags(p);
   for(const f of state.filters) if(!tags.some(([g,t])=>g===f.g&&t===f.t)) return false;
-  const words=state.q.toLowerCase().split(/\s+/).filter(Boolean);
+  const words=state.q.toLowerCase().split(/[\s,;+]+/).filter(Boolean);
   const hay=(tags.map(x=>x[1]).join(" ")+" "+p.file+(p.fav?" favorite":"")).toLowerCase();
   return words.every(w=>hay.includes(w));
 }
