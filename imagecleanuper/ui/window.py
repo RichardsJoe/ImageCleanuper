@@ -451,11 +451,14 @@ class App(ctk.CTk):
                 info["who"] = len(people_mod.groups(cat, limit=self.settings.people_per_round))
                 from .. import copies as copies_mod
                 info["copies"] = copies_mod.count_undecided(cat)
-                info["review"] = info["fixes"] + info["who"] + info["copies"]
+                from .. import accuracy as acc_mod
+                info["scorecard"] = acc_mod.scorecard(cat, self.settings)
+                info["review"] = info["fixes"] + info["who"] + info["copies"] + info.get("accuracy_waiting", 0)
             finally:
                 cat.close()
         else:
             info["review"] = info["fixes"] = info["who"] = info["copies"] = 0
+            info["scorecard"] = []
         return info
 
     # ---- home (wireframe 05) ----------------------------------------------------
@@ -510,7 +513,8 @@ class App(ctk.CTk):
         shown = False
         for label, n, cmd in (("Who is this?", info.get("who", 0), self.show_review),
                               ("Needs review", info.get("fixes", 0), lambda: self.show_review(skip_people=True)),
-                              ("Duplicates & bursts", info.get("copies", 0), lambda: self.show_dups(0))):
+                              ("Duplicates & bursts", info.get("copies", 0), lambda: self.show_dups(0)),
+                              ("Accuracy check", info.get("accuracy_waiting", 0), self.show_accuracy)):
             if n:
                 shown = True
                 ctk.CTkButton(chips, text=f"{label}   {n:,}", corner_radius=16, height=32,
@@ -519,10 +523,30 @@ class App(ctk.CTk):
         if not shown:
             ctk.CTkLabel(chips, text="Nothing waiting.", text_color=MUTED).pack(side="left")
 
-        ctk.CTkLabel(b, text="Accuracy scorecard   (target 95%)", font=ctk.CTkFont(size=15, weight="bold"),
+        target = int(round(self.settings.accuracy_target * 100))
+        ctk.CTkLabel(b, text=f"Accuracy scorecard   (target {target}%)", font=ctk.CTkFont(size=15, weight="bold"),
                      anchor="w").pack(fill="x")
-        ctk.CTkLabel(b, text="Appears once you start answering accuracy checks (arrives with people and pets).",
-                     text_color=MUTED, anchor="w").pack(fill="x", pady=(2, 16))
+        card = info.get("scorecard") or []
+        if not card:
+            ctk.CTkLabel(b, text="Appears after your first accuracy check (Review › Accuracy check, then run again).",
+                         text_color=MUTED, anchor="w").pack(fill="x", pady=(2, 16))
+        else:
+            grid = ctk.CTkFrame(b, fg_color="transparent")
+            grid.pack(fill="x", pady=(4, 16))
+            per_row = 4
+            for i, sc in enumerate(card[:12]):
+                pct = int(round(sc.accuracy * 100))
+                ok = sc.accuracy >= self.settings.accuracy_target
+                arrow = {1: " ▲", -1: " ▼", 0: ""}[sc.trend]
+                cell = ctk.CTkFrame(grid, border_width=1, border_color=GREEN if ok else AMBER)
+                cell.grid(row=i // per_row, column=i % per_row, padx=(0, 8), pady=4, sticky="ew")
+                ctk.CTkLabel(cell, text=sc.label, anchor="w").pack(fill="x", padx=12, pady=(6, 0))
+                ctk.CTkLabel(cell, text=f"{pct}%{arrow}", anchor="w", text_color=GREEN if ok else AMBER,
+                             font=ctk.CTkFont(size=18, weight="bold")).pack(fill="x", padx=12)
+                ctk.CTkLabel(cell, text=f"{plural(sc.answered, 'answer')}", anchor="w", text_color=MUTED,
+                             font=ctk.CTkFont(size=11)).pack(fill="x", padx=12, pady=(0, 6))
+            for c in range(per_row):
+                grid.grid_columnconfigure(c, weight=1, uniform="score")
 
         box = ctk.CTkFrame(b)
         box.pack(fill="x")
@@ -971,6 +995,8 @@ class App(ctk.CTk):
             finally:
                 c.close()
         if not gs:
+            if self._counts().get("accuracy_waiting"):
+                return self.show_accuracy()
             self._screen("Review", nav="review", subtitle="Nothing to review right now. Questions appear here "
                          "after a run when the app needs your help.")
             self._footer(back=("Home", self.show_home))
@@ -1073,6 +1099,87 @@ class App(ctk.CTk):
         self.bind("<Control-z>", lambda e: self._dups_undo(index))
         self._hotkey_line("1-9 Select · D Keep selected, remove the rest · K Keep all · → Next · ← Back · "
                           "Ctrl+Z Undo · Esc Home")
+
+    # ---- accuracy check (wireframe 10) ----------------------------------------------------
+    def show_accuracy(self):
+        from .. import accuracy as acc
+        derived = str(self.paths.data / "derived")
+        qs = []
+        if self.paths.catalog.exists():
+            c = Catalog(self.paths.catalog)
+            try:
+                qs = acc.questions(c, derived)
+            finally:
+                c.close()
+        todo = [q for q in qs if q.answer is None and not q.skipped]
+        if not todo:
+            self._screen("Accuracy check", nav="review", subtitle="All done for this round. Your answers update "
+                         "the scorecard when the next run starts.")
+            self._footer(back=("Home", self.show_home))
+            self.bind("<Control-z>", lambda e: self._acc_undo())
+            self.bind("<Left>", self._not_typing(lambda: self._acc_undo()))
+            self._hotkey_line("Esc Home · Ctrl+Z Undo last answer")
+            return
+        q = todo[0]
+        done = len(qs) - len(todo)
+        b = self._screen(q.question, nav="review", subtitle="Accuracy check: the app's guess is hidden so your "
+                         f"answer is a fair test.      {done + 1} of {len(qs)}")
+        cw, ch = self._avail()
+        side_w = 300
+        top = ctk.CTkFrame(b, fg_color="transparent")
+        top.pack(fill="both", expand=True)
+        crop = ("circle", q.face_box) if q.face_box else None
+        self._images = []
+        self._image_box(top, q.image, (int(cw - side_w - 40), int(ch - 120)), crop=crop).pack(side="left", anchor="n")
+        side = ctk.CTkFrame(top, fg_color="transparent", width=side_w)
+        side.pack(side="left", fill="y", padx=(20, 0), anchor="n")
+        ctk.CTkLabel(side, text="Pick one", font=ctk.CTkFont(weight="bold"), anchor="w").pack(fill="x", pady=(0, 6))
+
+        def pick(choice):
+            c2 = Catalog(self.paths.catalog)
+            try:
+                acc.answer(c2, q.id, choice)
+            finally:
+                c2.close()
+            self.show_accuracy()
+
+        def skip():
+            c2 = Catalog(self.paths.catalog)
+            try:
+                acc.skip(c2, q.id)
+            finally:
+                c2.close()
+            self.show_accuracy()
+        for i, opt in enumerate(q.options[:9], 1):
+            ctk.CTkButton(side, text=f"{i}   {opt}", anchor="w", height=40, width=side_w,
+                          fg_color="transparent", border_width=1, border_color=("gray70", "gray40"),
+                          text_color=("gray10", "gray90"), hover_color=("gray88", "gray25"),
+                          command=lambda o=opt: pick(o)).pack(fill="x", pady=3)
+            self.bind(str(i), self._not_typing(lambda o=opt: pick(o)))
+        if q.options == ["Yes", "No"]:
+            self.bind("y", self._not_typing(lambda: pick("Yes")))
+            self.bind("n", self._not_typing(lambda: pick("No")))
+        ctk.CTkLabel(side, text="Results update your scorecard after the next run.", text_color=MUTED,
+                     wraplength=side_w, justify="left", anchor="w").pack(fill="x", pady=(12, 0))
+        ctk.CTkButton(self.footer_area, text="Back  (←)", fg_color="transparent", border_width=1, width=140,
+                      text_color=("gray20", "gray85"), command=self._acc_undo).pack(side="left")
+        self.bind("<Escape>", lambda e: self.show_home())
+        ctk.CTkButton(self.footer_area, text="Skip  (→)", width=140, height=36, fg_color="transparent",
+                      border_width=1, text_color=("gray20", "gray85"), command=skip).pack(side="right")
+        self.bind("<Right>", self._not_typing(skip))
+        self.bind("<Left>", self._not_typing(self._acc_undo))
+        self.bind("<Control-z>", lambda e: self._acc_undo())
+        self._hotkey_line("1–9 Answer · → Skip · ← Back · Ctrl+Z Undo · Esc Close (progress saved)")
+
+    def _acc_undo(self):
+        from .. import accuracy as acc
+        if self.paths.catalog.exists():
+            c = Catalog(self.paths.catalog)
+            try:
+                acc.undo_last(c)
+            finally:
+                c.close()
+        self.show_accuracy()
 
     def _dups_undo(self, index):
         from .. import copies as copies_mod
@@ -1366,6 +1473,16 @@ class App(ctk.CTk):
             check(False, prob)
         if not fp.problems:
             check(True, "Your library is sorted and up to date")
+        card = info.get("scorecard") or []
+        if card:
+            t = self.settings.accuracy_target
+            good = [c for c in card if c.accuracy >= t]
+            check(len(good) == len(card), f"Accuracy at or above {int(round(t * 100))}% for {len(good)} of "
+                                          f"{plural(len(card), 'check')}")
+            for c in card:
+                if c.accuracy < t:
+                    check(False, f"{c.label} is at {int(round(c.accuracy * 100))}% — you may want one more "
+                                 "review round")
         if info.get("review"):
             check(False, f"{plural(info['review'], 'photo')} still waiting for review. You can finish anyway; "
                          "they stay sorted as they are now.")

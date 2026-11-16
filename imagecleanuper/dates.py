@@ -163,7 +163,7 @@ def resolve_all(cat: Catalog, s: Settings) -> dict:
     rows = cat.q(
         """
         SELECT a.id, a.file_id, f.rel_path, f.kind AS file_kind, m.exif_date, m.google_date, m.filename_date,
-               m.is_scan
+               m.is_scan, f.sha256, a.kind, a.cutout_index
         FROM assets a JOIN active_files f ON f.id = a.file_id LEFT JOIN meta m ON m.asset_id = a.id
         """)
     first: dict[int, Resolved] = {}
@@ -171,12 +171,17 @@ def resolve_all(cat: Catalog, s: Settings) -> dict:
         first[r["id"]] = _first_hand(r)
     similar = _similar_map(cat)
     counts: dict[str, int] = {}
+    from . import labels as labels_mod
+    yours = labels_mod.active(cat)
     with cat.tx():
         cat.db.execute("DELETE FROM dates")
         cat.db.execute("DELETE FROM holidays")
         scan_of = {r["id"]: bool(r["is_scan"]) for r in rows}
         for r in rows:
             res = first[r["id"]]
+            mine = yours.get(labels_mod.asset_key(r), {})
+            if mine.get("year") and (res.date is None or res.date[:4] != mine["year"]):
+                res = Resolved(f"{mine['year']}-01-01", "you", year_only=True)   # you moved it to that year
             if res.date is None:
                 res = _borrow(r["id"], scan_of, first, similar) or _from_folder(r) or Resolved(None, "unknown")
             counts[res.source] = counts.get(res.source, 0) + 1
@@ -190,6 +195,8 @@ def resolve_all(cat: Catalog, s: Settings) -> dict:
                 ev = holiday_for(dt.date.fromisoformat(res.date), s)
                 if ev:
                     hol, src = ev.key, "date"
+            if "holiday" in mine:                 # your answer wins ("" = not a holiday photo)
+                hol, src = (mine["holiday"] or None), "you"
             if hol:
                 cat.db.execute("INSERT INTO holidays(asset_id, holiday, source) VALUES (?,?,?)", (r["id"], hol, src))
                 counts["holiday"] = counts.get("holiday", 0) + 1

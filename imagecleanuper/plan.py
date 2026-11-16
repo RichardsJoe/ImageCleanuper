@@ -74,6 +74,8 @@ def preview(cat: Catalog, derived_dir: str, categories: dict | None = None) -> P
     for p in cat.q("""SELECT DISTINCT fc.asset_id, pe.name FROM faces fc JOIN people pe ON pe.id = fc.person_id
                       WHERE pe.merged_into IS NULL ORDER BY pe.name"""):
         people_of[p["asset_id"]].append(p["name"])
+    from . import labels as labels_mod
+    yours = labels_mod.active(cat)
     folders: dict[str, list[Entry]] = defaultdict(list)
     totals = defaultdict(int)
     cut_wrong = {r["file_id"] for r in rows if r["kind"] == "cutout" and r["fix_status"] == "undone"}
@@ -120,7 +122,11 @@ def preview(cat: Catalog, derived_dir: str, categories: dict | None = None) -> P
                 name = HOLIDAY_NAMES.get(r["holiday"], r["holiday"].split(":", 1)[-1])
                 dests.append(f"{root}{year}/Holidays/{name}")
             if entry.key.startswith("a"):
-                for person in people_of.get(r["id"], []):
+                mine = yours.get(entry.ckey, {})
+                not_in = mine.get("not_person", {})
+                names = [p for p in people_of.get(r["id"], []) if p.lower() not in not_in]
+                names += [n for k, n in sorted(mine.get("person", {}).items()) if k not in {p.lower() for p in names}]
+                for person in names:
                     dests.append(f"{root}{year}/People/{person}")
                 for key in sorted(content_of.get(r["id"], ())):
                     if key in labels:

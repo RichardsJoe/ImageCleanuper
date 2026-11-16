@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import backup, compare, content, dates, discover, finish as finish_mod, learned, log, people, plan, \
+from . import accuracy, backup, compare, content, dates, discover, finish as finish_mod, learned, log, people, plan, \
     settings as settings_mod, sync
 from .ai import pass_ as ai_pass
 from .analyze import run as analyze_run
@@ -153,6 +153,8 @@ class Runner:
                     raise UserError("Some photos couldn't be backed up, so nothing else was done.",
                                     "Check the log for the files involved and run again.")
 
+                counts["accuracy_scored"] = accuracy.close_round(cat)   # last round's answers count now
+
                 cat.set_run(run_id, last_step="analyze")
                 counts["analyze"] = analyze_run.analyze_pending(cat, str(self.paths.data / "derived"), self._prog)
 
@@ -173,7 +175,7 @@ class Runner:
                 self._prog("Planning", 0, 0)
                 counts["plan"] = plan.preview(cat, str(self.paths.data / "derived"), self.settings.categories).totals
 
-                # Phase 3+ steps go here: people, learning, sync ...
+                counts["accuracy_round"] = accuracy.build_round(cat, self.settings)
 
                 cat.set_run(run_id, last_step="learned_backup")
                 learned.backup_learned_data(self.paths.catalog, self.paths.data, self.settings.backup,
@@ -256,6 +258,7 @@ def summary(paths: AppPaths) -> dict:
             "dup_extras": cat.scalar("SELECT COUNT(*) FROM dup_members WHERE is_kept=0"),
             "last_sort": sync.last_sync(cat),
             "library_files": cat.scalar("SELECT COUNT(*) FROM owned_files"),
+            "accuracy_waiting": accuracy.waiting(cat),
             "finished": cat.scalar("SELECT COUNT(*) FROM files WHERE finished_at IS NOT NULL"),
         }
     finally:

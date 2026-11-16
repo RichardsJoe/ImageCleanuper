@@ -293,6 +293,42 @@ MIGRATIONS: list[str] = [
         SELECT f.* FROM files f JOIN sources s ON s.id = f.source_id
         WHERE (s.enabled = 1 AND f.missing = 0) OR f.finished_at IS NOT NULL;
     """,
+    # 13: your corrections (Report M/Del, accuracy check) and the accuracy check itself
+    """
+    CREATE TABLE photo_labels (
+        id INTEGER PRIMARY KEY,
+        content_key TEXT NOT NULL,        -- which photo (survives re-analysis)
+        kind TEXT NOT NULL,               -- holiday | year | not_person | person
+        value TEXT NOT NULL,              -- holiday key ('' = none) | YYYY | person name
+        source TEXT NOT NULL,             -- report | accuracy | library
+        created_at REAL NOT NULL,
+        undone INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX photo_labels_key ON photo_labels(content_key);
+    CREATE TABLE qa_rounds (
+        id INTEGER PRIMARY KEY,
+        created_at REAL NOT NULL,
+        closed_at REAL
+    );
+    CREATE TABLE qa_items (
+        id INTEGER PRIMARY KEY,
+        round_id INTEGER NOT NULL REFERENCES qa_rounds(id),
+        position INTEGER NOT NULL,
+        check_key TEXT NOT NULL,          -- person:<id> | pet | junk | cat:<key> | holiday | rotation | trim
+        kind TEXT NOT NULL,               -- person | yesno
+        content_key TEXT NOT NULL,
+        asset_id INTEGER,                 -- NULL if the photo was re-analyzed since
+        face_id INTEGER,
+        question TEXT NOT NULL,
+        options TEXT NOT NULL,            -- JSON list shown 1..n
+        hidden TEXT NOT NULL,             -- the app's guess when sampled (never shown)
+        answer TEXT,                      -- chosen option; NULL = not answered
+        skipped INTEGER NOT NULL DEFAULT 0,
+        answered_at REAL,
+        undo TEXT                         -- JSON: what to restore if you press Ctrl+Z
+    );
+    CREATE INDEX qa_items_round ON qa_items(round_id, position);
+    """,
 ]
 
 
