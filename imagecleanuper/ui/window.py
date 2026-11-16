@@ -391,6 +391,8 @@ class App(ctk.CTk):
             ctk.CTkButton(row, text="+ Add a folder", width=160, command=add).pack(side="left")
 
         redraw()
+        ctk.CTkButton(b, text="Bring in Google Photos…", width=200, fg_color="transparent", border_width=1,
+                      text_color=("gray20", "gray85"), command=self.show_google).pack(anchor="w", pady=(2, 8))
         check_locations = self._location_fields(b, s)
 
         return check_locations
@@ -1807,6 +1809,97 @@ class App(ctk.CTk):
                 subprocess.Popen(["xdg-open", os.path.dirname(path)])
         except OSError:
             pass
+
+    # ---- Google Photos (wireframe 16) -------------------------------------------------------
+    def show_google(self, zips: list | None = None):
+        import datetime as dt
+        import webbrowser
+        from .. import google
+        zips = zips or []
+        b = self._screen("Bring in your Google Photos", nav="settings",
+                         subtitle="Google only lets you take your whole library out as an export. It takes three steps.")
+        requested = None
+        if self.paths.catalog.exists():
+            c = Catalog(self.paths.catalog)
+            try:
+                requested = google.get_state(c, "takeout_requested")
+            finally:
+                c.close()
+
+        def step(n, title, text):
+            box = ctk.CTkFrame(b, border_width=1, border_color=("gray75", "gray35"), fg_color="transparent")
+            box.pack(fill="x", pady=6)
+            ctk.CTkLabel(box, text=str(n), font=ctk.CTkFont(size=20, weight="bold"), text_color=BLUE, width=40
+                         ).pack(side="left", padx=(14, 4), pady=14, anchor="n")
+            col = ctk.CTkFrame(box, fg_color="transparent")
+            col.pack(side="left", fill="x", expand=True, pady=12)
+            ctk.CTkLabel(col, text=title, font=ctk.CTkFont(size=15, weight="bold"), anchor="w").pack(fill="x")
+            ctk.CTkLabel(col, text=text, text_color=MUTED, anchor="w", justify="left", wraplength=WRAP - 320
+                         ).pack(fill="x")
+            right = ctk.CTkFrame(box, fg_color="transparent")
+            right.pack(side="right", padx=14)
+            return right
+
+        def open_takeout():
+            webbrowser.open(google.TAKEOUT_URL)
+            c = Catalog(self.paths.catalog)
+            try:
+                google.set_state(c, "takeout_requested", dt.date.today().isoformat())
+            finally:
+                c.close()
+            self.show_google(zips)
+        r = step(1, "Ask Google for an export", "Opens Google Takeout with only Google Photos selected. "
+                 "Choose 50 GB zip files.")
+        ctk.CTkButton(r, text="Open Google Takeout  ↗", width=200, command=open_takeout).pack()
+        if requested:
+            ctk.CTkLabel(r, text=f"✓ Requested {dt.date.fromisoformat(requested):%d %b}", text_color=GREEN).pack()
+        r = step(2, "Wait for Google's email", "Usually a few hours, sometimes a day or two. You can close the "
+                 "app meanwhile.")
+        ctk.CTkLabel(r, text="Waiting for email…" if requested and not zips else "", text_color=MUTED).pack()
+        r = step(3, "Choose the downloaded zips", "Download every zip from the email, then pick them here.")
+
+        def choose():
+            paths = filedialog.askopenfilenames(title="Choose the Google Takeout zips",
+                                                filetypes=[("Zip files", "*.zip")])
+            if paths:
+                self.show_google(sorted(set(zips) | set(paths)))
+        ctk.CTkButton(r, text="Choose zip files…", width=200, command=choose).pack()
+        problems = []
+        if zips:
+            n, size, problems = google.check_zips(zips)
+            amount = f"{size / 1024 ** 3:.1f} GB" if size >= 1024 ** 3 else f"{size / 1024 ** 2:.0f} MB"
+            ctk.CTkLabel(r, text=f"{plural(len(zips), 'zip')} · {amount} · {plural(n, 'photo')}",
+                         text_color=GREEN if not problems else AMBER).pack()
+        for p in problems:
+            ctk.CTkLabel(b, text="!  " + p, text_color=AMBER, anchor="w").pack(fill="x")
+        ctk.CTkLabel(b, text="The zips are copied into your backup folder and checked. Google's own dates are used "
+                     "for each photo.", text_color=MUTED, anchor="w", wraplength=WRAP, justify="left"
+                     ).pack(fill="x", pady=(8, 0))
+        self._footer(back=("Cancel", lambda: self.show_settings("Folders")))
+        ok = bool(zips) and not problems
+
+        def start():
+            if ok:
+                self._job("Bringing in your Google Photos", "The zips are copied into your backup, then unpacked.",
+                          "Import", "files", lambda prog: app_mod.google_import(self.paths, self.settings, zips, prog),
+                          self._google_done)
+        ctk.CTkButton(self.footer_area, text="Add to my photos  (Enter)", fg_color=BLUE, width=240, height=38,
+                      state="normal" if ok else "disabled", command=start).pack(side="right")
+        self.bind("<Return>", lambda e: start())
+        self._hotkey_line("Enter Add to my photos · Esc Cancel")
+
+    def _google_done(self, res):
+        self.sorting = None
+        self.folders_changed = True
+        self.show_home()
+        if res is None:
+            self._notice("Import paused", "Choose the same zips again to carry on.")
+            return
+        text = (f"{plural(res.photos, 'photo')} and videos from {plural(res.zips, 'zip')} are ready "
+                f"({res.dated:,} with Google's date). Click Run to sort them.")
+        if res.skipped:
+            text += f"\n{plural(len(res.skipped), 'file')} couldn't be unpacked (see the log)."
+        self._notice("Google Photos added", text)
 
     # ---- sorting (wireframe 06 layout, one bar) ------------------------------------------
     def start_sort(self):

@@ -224,9 +224,23 @@ def finish_library(paths: AppPaths, s: settings_mod.Settings, progress: Progress
     try:
         with keep_awake():
             kw = {"trash": trash} if trash else {}
-            roots = list(s.masters) + [sync.add_new_folder(s.library)]
+            from . import google
+            roots = list(s.masters) + [sync.add_new_folder(s.library)] + google.import_sources(cat)
             return finish_mod.finish(cat, s.library, str(paths.data / "derived"), roots, s.categories,
                                      progress, **kw)
+    finally:
+        cat.close()
+
+
+def google_import(paths: AppPaths, s: settings_mod.Settings, zips: list[str], progress: Progress | None = None):
+    """Bring in Google Takeout zips (runs on a worker thread)."""
+    from . import google
+    if not s.backup:
+        raise UserError("Choose a backup folder first (Settings).")
+    cat = Catalog(paths.catalog)
+    try:
+        with keep_awake():
+            return google.import_zips(cat, s.backup, str(paths.data), zips, progress)
     finally:
         cat.close()
 

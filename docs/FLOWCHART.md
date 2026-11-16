@@ -202,6 +202,11 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **`_Add New Photos`** in the library: drop photos (or folders) in, Run, and they're sorted like the rest; Finish empties it.
 - **New photos later:** only new or changed files are analysed and face-scanned; everything you've taught (names, strangers, yes/no answers, copy choices) is kept and applied to them automatically.
 
+- **Accuracy check:** a round of blind questions per check (each person, Pets, Junk, categories, Holidays, Rotation, Border trim) is made after each run; wrong guesses are corrected at once; the next run scores the round. The scorecard is on Home and Finish.
+- **Report corrections:** select a photo, M moves it (to a person, holiday, category, year, Junk), Del takes it out of the folder, O shows the original; Ctrl+Z undoes. Moving or deleting photos in the library yourself counts the same way (checked at each run and sort); edited files are left alone; if most of the library vanishes at once nothing is learned and it's copied again.
+- **Settings tabs:** Folders (and Google Photos), People (rename/merge, strangers, best samples), Holidays & categories, Accuracy, Hotkeys, Claude.
+- **Google Photos:** Takeout zips are copied into the backup (they are the backup of their photos), unpacked, and Google's sidecar dates are used.
+
 ### Parked ideas (not in the current plan)
 - **Enhance old photos** (colour/fade correction, grain removal, sharpening). Tested on a real 1980s print: rule-based settings help colour; **Claude-guided settings** (Claude looks at each photo and picks the settings, local tools apply them, about a cent per photo) gave the best result. Claude can't edit images itself. Optional local AI models would remove grain far better. Parked until the rest of the app is working; would slot in after cut-out/rotate/trim with a Keep enhanced / Use original review question.
 
@@ -236,3 +241,4 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 19. 2026-11-15 · v19: Upright prints via faces (auto / ask / leave), local image model as second opinion in phase 3, no Claude for rotation; Approve and sort stays in phase 4; Enhance parked.
 20. 2026-11-16 · v20: Phase 4: duplicates & bursts screen; Approve and sort copies the plan into the library (Original Scans, stable clash names, never touches your files).
 21. 2026-11-16 · v21: Finish (checked moves, Recycle Bin for removed copies, empty folders deleted, crash recovery); _Add New Photos drop folder.
+22. 2026-11-16 · v22: Accuracy check and scorecard; Report M/Del/O; hand edits in the library; Settings tabs incl. People; Google Photos import.

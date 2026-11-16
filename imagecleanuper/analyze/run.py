@@ -124,6 +124,16 @@ def _new_asset(cat: Catalog, file_id: int, kind: str, index: int | None, w: int,
 
 def analyze_file(cat: Catalog, f, derived_dir: str) -> int:
     """Analyze one file. Returns the number of cut-outs made (0 for a normal photo)."""
+    n = _analyze_file(cat, f, derived_dir)
+    from ..google import google_date_for
+    gdate = google_date_for(cat, f["orig_path"])
+    if gdate:      # Google Photos kept the date in its sidecar file (often missing from the photo itself)
+        cat.db.execute("UPDATE meta SET google_date=? WHERE asset_id IN (SELECT id FROM assets WHERE file_id=?)",
+                       (gdate, f["id"]))
+    return n
+
+
+def _analyze_file(cat: Catalog, f, derived_dir: str) -> int:
     _clear_assets(cat, f["id"], derived_dir)
     name_date = imageio.parse_date_from_filename(f["rel_path"])
     if f["kind"] == "video":

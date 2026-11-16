@@ -329,6 +329,25 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX qa_items_round ON qa_items(round_id, position);
     """,
+    # 14: Google Photos (Takeout) imports and the dates Google kept for each photo
+    """
+    CREATE TABLE google_imports (
+        id INTEGER PRIMARY KEY,
+        created_at REAL NOT NULL,
+        state TEXT NOT NULL,              -- running | done | failed
+        zips TEXT NOT NULL,               -- JSON list of zip names (in the backup folder)
+        files INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE google_meta (
+        path_key TEXT PRIMARY KEY,        -- normalised path of the extracted photo
+        taken_date TEXT NOT NULL,         -- YYYY-MM-DD (local time)
+        import_id INTEGER NOT NULL
+    );
+    CREATE TABLE app_state (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    );
+    """,
 ]
 
 

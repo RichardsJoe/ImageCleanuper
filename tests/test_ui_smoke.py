@@ -20,7 +20,7 @@ def test_screens_open(env):
         app.settings = s
         for show in (app.show_setup_folders, app.show_setup_locations, app.show_setup_ready,
                      app.show_home, app.show_review, app.show_dups, app.show_accuracy, app.show_report, app.show_finish, app.show_settings,
-                     app.show_restore, app.show_restore_search, app.show_hotkeys):
+                     app.show_restore, app.show_restore_search, app.show_google, app.show_hotkeys):
             show()
             app.update()
         for tab in app.SETTINGS_TABS:
