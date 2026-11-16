@@ -130,6 +130,17 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 .rail h3 i,.ghost h3 i{width:8px;height:8px;border-radius:2px;background:var(--c);flex:none}
 .ghead{display:flex;align-items:center;gap:8px;flex:1;min-width:0;border:0;background:transparent;padding:4px 8px 4px 2px;border-radius:6px;font:inherit;letter-spacing:inherit;text-transform:inherit;text-align:left}
 .ghead:hover{background:var(--sunk)}
+.cicon{flex:none;display:grid;place-items:center;color:var(--c)}
+.cicon svg{width:15px;height:15px}
+.cname{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rail-mini .rail{padding:12px 0 24px;display:flex;flex-direction:column;align-items:center;gap:4px;overflow-x:hidden;scrollbar-gutter:auto;scrollbar-width:none}
+.rail-mini .rail::-webkit-scrollbar{display:none}
+.ricon{flex:none;position:relative;width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:var(--c,var(--muted));display:grid;place-items:center}
+.ricon:hover{background:var(--sunk)}
+.ricon svg{width:20px;height:20px}
+.ricon b{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--bg)}
+.rexpand{color:var(--muted)}
+.rsep{width:24px;height:1px;background:var(--line);margin:4px 0 6px}
 .ghead em{margin-left:auto;white-space:nowrap;font-family:var(--body);font-style:normal;font-weight:500;text-transform:none;letter-spacing:0;font-size:12px;color:var(--muted)}
 .caret{flex:none;color:var(--muted);transition:transform .15s}
 .ghead[aria-expanded="false"] .caret{transform:rotate(-90deg)}
@@ -272,7 +283,7 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 
 <div class="main wrap">
   <nav class="rail" id="rail" aria-label="Filters"></nav>
-  <div class="resizer" id="resizer" role="separator" aria-orientation="vertical" aria-label="Resize filter panel" aria-valuemin="200" aria-valuemax="520" tabindex="0" title="Drag to resize. Double-click to reset"></div>
+  <div class="resizer" id="resizer" role="separator" aria-orientation="vertical" aria-label="Resize filter panel" aria-valuemin="56" aria-valuemax="520" tabindex="0" title="Drag to resize. Double-click to reset"></div>
   <main class="content">
     <div class="bar" id="bar"></div>
     <div class="grid" id="grid"></div>
@@ -398,7 +409,24 @@ function visible(){
   return list;
 }
 
+// Category icons: used on headers and in the slim icon strip.
+const ICONS={
+  people:'<path d="M16 19v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1"/><circle cx="10" cy="7" r="3.5"/><path d="M20 19v-1a4 4 0 0 0-3-3.9M15.5 3.6a3.5 3.5 0 0 1 0 6.8"/>',
+  places:'<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  events:'<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="m12 12.3 1.1 2.2 2.4.3-1.8 1.7.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.7 2.4-.3z"/>',
+  things:'<path d="M12 3 3.5 7.5v9L12 21l8.5-4.5v-9z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/>',
+  year:'<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17M8 14h2M14 14h2M8 17h2"/>',
+  tag:'<path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1 1 0 0 1 0 1.4l-7.2 7.2a1 1 0 0 1-1.4 0z"/><circle cx="8" cy="8" r="1.5"/>'
+};
+const catIcon=g=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[g]||ICONS.tag}</svg>`;
+// Slim icon strip shown when the column is dragged narrower than labels can fit.
+function renderRailMini(){
+  $("rail").innerHTML=`<button class="ricon rexpand" data-expand="" title="Show categories" aria-label="Show categories"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 7 5 5-5 5M13 7l5 5-5 5"/></svg></button><span class="rsep"></span>`+
+    state.order.filter(g=>g==="year"||GROUPS[g]).map(g=>{const L=label(g),n=state.filters.filter(f=>f.g===g).length;
+      return `<button class="ricon" data-expand="${g}" style="--c:${COLORS[g]}" title="${L}" aria-label="${L}${n?", has selected tags":""}">${catIcon(g)}${n?"<b></b>":""}</button>`;}).join("");
+}
 function renderRail(list){
+  if(state.railMini&&matchMedia("(min-width:761px)").matches)return renderRailMini();
   // The list of tags is built from ALL photos in a fixed order, so it never moves.
   // Only the counts change; tags with no matching photos are greyed out, not removed.
   const tally=ps=>{const c={};ps.forEach(p=>allTags(p).forEach(([g,t])=>{(c[g]??={})[t]=(c[g][t]||0)+1;}));return c;};
@@ -417,7 +445,7 @@ function renderRail(list){
     const L=label(g);
     return `<section class="grp" data-grp="${g}" style="--c:${COLORS[g]}"><h3>`+
       `<button class="grip" data-grip="${g}" title="Drag to reorder" aria-label="Move ${L}. Drag, or press the up and down arrow keys">${GRIP}</button>`+
-      `<button class="ghead" data-toggle="${g}" aria-expanded="${!shut}"><svg class="caret" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 4.5 3 3 3-3"/></svg><i></i>${L}<em>${shut?entries.length:""}</em></button>`+
+      `<button class="ghead" data-toggle="${g}" aria-expanded="${!shut}"><svg class="caret" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 4.5 3 3 3-3"/></svg><span class="cicon">${catIcon(g)}</span><span class="cname">${L}</span><em>${shut?entries.length:""}</em></button>`+
       `<button class="hbtn" data-sort="${g}" title="Tags sorted ${SORTS[m][1]}. Click to change" aria-label="Sort ${L} tags. Now ${SORTS[m][1]}">${SORTS[m][0]}</button>`+
       (g!=="year"?`<button class="hbtn" data-add="${g}" title="Add a tag to ${L}" aria-label="Add a tag to ${L}" aria-expanded="${state.adding===g}">+</button>`+
         `<button class="hbtn more" data-menu="${g}" title="Rename, color or delete" aria-label="${L} options" aria-expanded="${state.menu===g}"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="3" cy="7" r="1.4"/><circle cx="7" cy="7" r="1.4"/><circle cx="11" cy="7" r="1.4"/></svg></button>`:"")+`</h3>`+catExtras(g,L)+
@@ -565,6 +593,8 @@ $("rail").addEventListener("click",e=>{
   if(so){const g=so.dataset.sort,ks=Object.keys(SORTS);state.tagSort[g]=ks[(ks.indexOf(state.tagSort[g]||"az")+1)%ks.length];save(SORT_KEY,state.tagSort);return render();}
   const ad=e.target.closest("[data-add]");
   if(ad){const g=ad.dataset.add;state.adding=state.adding===g?null:g;state.focusNew=true;state.collapsed.delete(g);return render();}
+  const ex=e.target.closest("[data-expand]");
+  if(ex){expandRail(ex.dataset.expand);return;}
   if(e.target.closest("[data-cancel]")){closeInline();return render();}
   const mn=e.target.closest("[data-menu]");
   if(mn){const g=mn.dataset.menu,was=state.menu===g;closeInline();state.menu=was?null:g;return render();}
@@ -673,19 +703,36 @@ $("panel").addEventListener("click",e=>{
 $("panel").addEventListener("submit",e=>{e.preventDefault();const p=photos[state.open];const t=$("newTag").value.trim();if(!t)return;
   const g=$("newGroup").value;if(!p.tags[g].includes(t))p.tags[g].push(t);render();setTimeout(()=>$("newTag")?.focus());});
 // Drag the divider to resize the category column. Arrow keys work too; double-click resets.
-const RW_KEY="railWidth",RW_DEFAULT=280;
-function setRW(w){w=Math.max(200,Math.min(520,Math.round(w)));document.documentElement.style.setProperty("--rail-w",w+"px");$("resizer").setAttribute("aria-valuenow",w);return w;}
-try{const w=+localStorage.getItem(RW_KEY);setRW(w||RW_DEFAULT);}catch(e){setRW(RW_DEFAULT);}
+// Narrower than RW_MIN, labels would collide, so the column snaps to a slim icon strip instead.
+const RW_KEY="railWidth",RW_DEFAULT=280,RW_MIN=260,RW_MAX=520,RW_MINI=56;
+state.railW=RW_DEFAULT;state.railMini=false;
+function applyRW(raw,rerender=true){
+  const mini=raw<RW_MIN,changed=mini!==state.railMini;
+  state.railMini=mini;if(!mini)state.railW=Math.min(RW_MAX,Math.round(raw));
+  const w=mini?RW_MINI:state.railW;
+  document.documentElement.style.setProperty("--rail-w",w+"px");
+  document.querySelector(".main").classList.toggle("rail-mini",mini);
+  $("resizer").setAttribute("aria-valuenow",w);
+  if(changed&&rerender)render();
+  return w;
+}
+const curRW=()=>state.railMini?RW_MINI:state.railW;
+function saveRW(){save(RW_KEY,state.railW);save("railMini",state.railMini);}
+function expandRail(g){
+  applyRW(state.railW);saveRW();
+  if(g){state.collapsed.delete(g);render();setTimeout(()=>$("rail").querySelector(`[data-grp="${g}"]`)?.scrollIntoView({block:"start"}),0);}
+}
+try{const w=+localStorage.getItem(RW_KEY);if(w)state.railW=Math.max(RW_MIN,Math.min(RW_MAX,w));applyRW(JSON.parse(localStorage.getItem("railMini"))?0:state.railW,false);}catch(e){applyRW(RW_DEFAULT,false);}
 let rs=null;
-$("resizer").addEventListener("pointerdown",e=>{if(e.button!==0)return;e.preventDefault();rs={x:e.clientX,w:$("rail").getBoundingClientRect().width};$("resizer").setPointerCapture(e.pointerId);$("resizer").classList.add("active");document.body.classList.add("is-resizing");});
-$("resizer").addEventListener("pointermove",e=>{if(rs)setRW(rs.w+e.clientX-rs.x);});
-function endRs(){if(!rs)return;rs=null;$("resizer").classList.remove("active");document.body.classList.remove("is-resizing");save(RW_KEY,Math.round($("rail").getBoundingClientRect().width));}
+$("resizer").addEventListener("pointerdown",e=>{if(e.button!==0)return;e.preventDefault();rs={x:e.clientX,w:curRW()};$("resizer").setPointerCapture(e.pointerId);$("resizer").classList.add("active");document.body.classList.add("is-resizing");});
+$("resizer").addEventListener("pointermove",e=>{if(rs)applyRW(rs.w+e.clientX-rs.x);});
+function endRs(){if(!rs)return;rs=null;$("resizer").classList.remove("active");document.body.classList.remove("is-resizing");saveRW();}
 $("resizer").addEventListener("pointerup",endRs);
 $("resizer").addEventListener("pointercancel",endRs);
-$("resizer").addEventListener("dblclick",()=>save(RW_KEY,setRW(RW_DEFAULT)));
+$("resizer").addEventListener("dblclick",()=>{applyRW(RW_DEFAULT);saveRW();});
 $("resizer").addEventListener("keydown",e=>{
   if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;e.preventDefault();
-  save(RW_KEY,setRW($("rail").getBoundingClientRect().width+(e.key==="ArrowRight"?16:-16)));
+  const right=e.key==="ArrowRight";applyRW(state.railMini?(right?state.railW:RW_MINI):state.railW+(right?16:-16));saveRW();
 });
 render();
 </script>

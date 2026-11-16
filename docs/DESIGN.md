@@ -30,7 +30,8 @@ Rules agreed while reviewing the mockup. New screens follow these.
 ### Layout and scrolling
 - The header and search bar stay fixed. The category column and the photo grid each scroll on their own; scrolling one never moves the other.
 - **No scrolling inside scrolling.** Categories never get their own scrollbars; the category column scrolls as one, and keeps its position when the list redraws. Long categories can be collapsed instead.
-- The category column is resizable with a drag handle between it and the grid (200–520 px, double-click to reset). Widths, order, sort, collapsed state and favorites are remembered.
+- The category column is resizable with a drag handle between it and the grid (260–520 px, double-click to reset). **Labels never overlap or get cut off**: dragging narrower than 260 px snaps the column to a slim icon strip (56 px). Click an icon to reopen the column at that category, click » to reopen it, or drag it back out. A dot on an icon means that category has selected tags.
+- **Every category has an icon** in its colour (People: person, Places: pin, Events: calendar with star, Things: box, Year: calendar, your own categories: tag). The same icon shows on the full header, so the strip is easy to read. Widths, order, sort, collapsed state and favorites are remembered.
 - **Scrollbars never cover content.** Every scrolling area reserves its own lane for the scrollbar plus a small gap, so photos, counts and stars are never under it (this matters on Windows 11, where scrollbars float over content by default). Scrollbars are thin and themed.
 - Headers in a column line up: name on the left, small controls (sort, `+`) on the right, in the same positions on every row.
 
