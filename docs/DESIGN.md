@@ -13,7 +13,8 @@ Rules agreed while reviewing the mockup. New screens follow these.
 ### Buttons and actions
 - **Adding something uses a small `+` icon button** on the header row it belongs to: `+` on a category header adds a tag, `+` on the Categories header adds a category. No wordy "+ Add …" buttons in panels or lists. Every icon button has a tooltip and screen-reader label ("Add a tag to People").
 - An icon button whose inline box is open shows the accent colour until it closes.
-- Inline add boxes open right under their header. Enter saves, Esc cancels, and the box gets focus straight away.
+- Inline add boxes open right under their header and get focus straight away. **Every add box can be cancelled**: Enter saves; Esc, the small × after the Add button, or clicking the same `+` again cancels; clicking away from an empty box closes it.
+- Inputs and their focus rings are never clipped by the edge of a scrolling column.
 - Full text buttons are only for the main page actions ("+ Add folder", "Start tagging", "Done").
 
 ### Lists of tags

@@ -64,7 +64,7 @@ html,body{height:100%}
 body{display:flex;flex-direction:column}
 .flow,.top{flex:none}
 .main{flex:1;min-height:0;display:grid;grid-template-columns:var(--rail-w,280px) 14px minmax(0,1fr);width:100%;max-width:1400px;margin:0 auto}
-.rail{overflow-y:auto;overscroll-behavior:contain;padding-block:20px 32px;padding-right:10px;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.rail{overflow-y:auto;overscroll-behavior:contain;padding-block:20px 32px;padding-right:10px;padding-left:4px;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
 .rail::-webkit-scrollbar{width:10px}
 .rail::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;border:2px solid var(--bg)}
 .rail::-webkit-scrollbar-thumb:hover{background:var(--muted)}
@@ -104,8 +104,10 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 .hbtn{flex:none;border:0;background:transparent;color:var(--muted);font-family:var(--body);font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;min-width:26px;height:24px;padding:0 5px;border-radius:6px}
 .hbtn:hover{background:var(--sunk);color:var(--fg)}
 .hbtn[data-add]{font-size:17px;font-weight:500;line-height:1}
-.newtag{display:flex;gap:6px;margin:0 0 6px 22px}
-.newtag input{flex:1;min-width:0;border:1px solid var(--accent);background:var(--surface);border-radius:6px;padding:5px 8px}
+.newtag{display:flex;align-items:center;gap:4px;margin:0 0 6px 22px}
+.newtag input{flex:1;min-width:0;border:1px solid var(--accent);background:var(--surface);border-radius:6px;padding:5px 8px;margin-right:2px}
+.newtag input:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.newtag .cancel{font-size:18px;font-weight:400;height:28px;width:28px}
 .newtag .btn{padding:4px 10px}
 .railtop{position:sticky;top:-20px;z-index:3;background:var(--bg);display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:-20px;padding-block:16px 8px;border-bottom:1px solid var(--line);margin-bottom:12px}
 .railtop span{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
@@ -381,7 +383,7 @@ function renderRail(list){
   queueMicrotask(()=>$("rail").querySelectorAll(".grp").forEach(s=>{const f=s.querySelector(".facet");if(f&&scrolls[s.dataset.grp])f.scrollTop=scrolls[s.dataset.grp];}));
   for(const g in state.extra) for(const t of state.extra[g]) (total[g]??={})[t]??=0;
   const top=`<div class="railtop"><span>Categories</span><button class="hbtn" data-addcat title="Add a category" aria-label="Add a category" aria-expanded="${state.adding==="__cat"}">+</button></div>`+
-    (state.adding==="__cat"?`<form class="newtag" data-newcat><input id="newcat" placeholder="Category name, e.g. Activities" autocomplete="off" aria-label="New category name"><button class="btn primary">Add</button></form>`:"");
+    (state.adding==="__cat"?`<form class="newtag" data-newcat><input id="newcat" placeholder="Category name, e.g. Activities" autocomplete="off" aria-label="New category name"><button class="btn primary">Add</button><button type="button" class="hbtn cancel" data-cancel title="Cancel (Esc)" aria-label="Cancel">×</button></form>`:"");
   $("rail").innerHTML=top+state.order.map(g=>{
     const m=state.tagSort[g]||"az",tg=total[g]||{};
     const isFav=t=>state.favTags.has(g+"|"+t);
@@ -394,7 +396,7 @@ function renderRail(list){
       `<button class="ghead" data-toggle="${g}" aria-expanded="${!shut}"><svg class="caret" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 4.5 3 3 3-3"/></svg><i></i>${L}<em>${shut?entries.length:""}</em></button>`+
       `<button class="hbtn" data-sort="${g}" title="Tags sorted ${SORTS[m][1]}. Click to change" aria-label="Sort ${L} tags. Now ${SORTS[m][1]}">${SORTS[m][0]}</button>`+
       (g!=="year"?`<button class="hbtn" data-add="${g}" title="Add a tag to ${L}" aria-label="Add a tag to ${L}" aria-expanded="${state.adding===g}">+</button>`:"")+`</h3>`+
-      (state.adding===g?`<form class="newtag" data-newtag="${g}"><input id="newtag-${g}" placeholder="New ${L.toLowerCase()} tag" autocomplete="off" aria-label="New ${L} tag"><button class="btn primary">Add</button></form>`:"")+
+      (state.adding===g?`<form class="newtag" data-newtag="${g}"><input id="newtag-${g}" placeholder="New ${L.toLowerCase()} tag" autocomplete="off" aria-label="New ${L} tag"><button class="btn primary">Add</button><button type="button" class="hbtn cancel" data-cancel title="Cancel (Esc)" aria-label="Cancel">×</button></form>`:"")+
       `<div class="facet"${shut?" hidden":""}>`+
       (entries.length?entries.map((t,i)=>{const on=state.filters.some(f=>f.g===g&&f.t===t);const n=counts[g]?.[t]||0;const fav=isFav(t);
         return `<div class="trow${fav?" fav":""}${fav&&i===nFav-1&&nFav<entries.length?" lastfav":""}"><button class="tag${on?" on":""}${!n&&!on?" zero":""}" data-g="${g}" data-t="${t}" aria-pressed="${on}"${!n&&!on?` disabled title="${tg[t]?"No photos match with the current filters":"No photos have this tag yet"}"`:""}><span>${t}</span><em>${n}</em></button>`+
@@ -506,7 +508,8 @@ $("rail").addEventListener("click",e=>{
   if(so){const g=so.dataset.sort,ks=Object.keys(SORTS);state.tagSort[g]=ks[(ks.indexOf(state.tagSort[g]||"az")+1)%ks.length];save(SORT_KEY,state.tagSort);return render();}
   const ad=e.target.closest("[data-add]");
   if(ad){const g=ad.dataset.add;state.adding=state.adding===g?null:g;state.focusNew=true;state.collapsed.delete(g);return render();}
-  if(e.target.closest("[data-addcat]")){state.adding="__cat";state.focusNew=true;return render();}
+  if(e.target.closest("[data-cancel]")){state.adding=null;return render();}
+  if(e.target.closest("[data-addcat]")){state.adding=state.adding==="__cat"?null:"__cat";state.focusNew=true;return render();}
   if(e.target.closest("[data-grip]"))return;
   const h=e.target.closest("[data-toggle]");
   if(h){const g=h.dataset.toggle;state.collapsed.has(g)?state.collapsed.delete(g):state.collapsed.add(g);
@@ -531,6 +534,12 @@ $("rail").addEventListener("submit",e=>{
   if(v&&f.dataset.newtag)addTag(f.dataset.newtag,v);
   else if(v&&f.hasAttribute("data-newcat"))addCategory(v);
   render();
+});
+// Clicking away from an empty add box closes it, so a misclick on + needs no cleanup.
+$("rail").addEventListener("focusout",e=>{
+  const f=e.target.closest(".newtag");if(!f||e.target.value.trim())return;
+  const to=e.relatedTarget;if(to&&(f.contains(to)||to.matches("[data-add],[data-addcat]")))return;
+  setTimeout(()=>{if(state.adding&&!document.activeElement?.closest(".newtag")){state.adding=null;render();}},0);
 });
 $("rail").addEventListener("keydown",e=>{
   if(e.key==="Escape"&&e.target.closest(".newtag")){e.stopPropagation();state.adding=null;return render();}
