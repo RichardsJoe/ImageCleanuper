@@ -20,7 +20,7 @@ Rules agreed while reviewing the mockup. New screens follow these.
 - Tags are **A–Z by default**. Each category has its own sort toggle on its header (A–Z → Z–A → Most photos). Year defaults to newest first.
 - **Favorites:** a ☆ appears on hover (always visible on touch screens). A starred tag moves to the top of its category, with a thin line under the favorites.
 - **The list never reshuffles while filtering.** Tags keep their place. Counts update, and tags with no matching photos are greyed out instead of removed.
-- **Categories collapse** from their header. A collapsed header shows its tag count, or "N selected" if filters are on inside it.
+- **Categories collapse** from their header. A collapsed header shows its tag count; open headers show no count (selected tags are already visible as chips in the search box).
 - **Categories reorder by dragging** the ⠿ handle (or with the arrow keys). While dragging, a floating copy with a shadow follows the pointer and a dashed outline shows where it will drop.
 
 ### Layout and scrolling
@@ -29,6 +29,10 @@ Rules agreed while reviewing the mockup. New screens follow these.
 - The category column is resizable with a drag handle between it and the grid (200–520 px, double-click to reset). Widths, order, sort, collapsed state and favorites are remembered.
 - **Scrollbars never cover content.** Every scrolling area reserves its own lane for the scrollbar plus a small gap, so photos, counts and stars are never under it (this matters on Windows 11, where scrollbars float over content by default). Scrollbars are thin and themed.
 - Headers in a column line up: name on the left, small controls (sort, `+`) on the right, in the same positions on every row.
+
+### Photo details
+- Opening a photo docks its details as a column on the right. **The grid stays usable**: click any other photo to switch to it in one click, with no dimmed background and nothing to close first. The open photo is outlined in the grid.
+- Prev / Next buttons and the left/right arrow keys step through the current results. Esc or Close hides the panel. On a phone the panel fills the screen.
 
 ### Search
 - Selected tags appear as coloured chips inside the search box, in front of the typed text. Remove a chip with its × or Backspace.

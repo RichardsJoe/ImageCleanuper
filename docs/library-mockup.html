@@ -151,7 +151,9 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 .tile{position:relative;border:0;padding:0;background:var(--surface);border-radius:8px;overflow:hidden;text-align:left;outline-offset:2px}
 .tile .ph{aspect-ratio:4/3;width:100%;display:block}
 .tile .meta{padding:8px 10px;display:flex;justify-content:space-between;gap:6px;font-size:12px;color:var(--muted)}
-.tile .meta span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
+.tile{display:flex;flex-direction:column;justify-content:flex-start}
+.tile .meta span:last-child{flex:none;white-space:nowrap}
+.tile .meta span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
 .tile.sel{box-shadow:0 0 0 3px var(--accent)}
 .tile .fav{position:absolute;top:6px;right:8px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);font-size:16px}
 .tile .chk{position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.25);opacity:0;transition:opacity .15s}
@@ -166,7 +168,14 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 
 /* Detail panel */
 .scrim{position:fixed;inset:0;background:rgba(10,12,18,.45);z-index:20}
-.panel{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--surface);z-index:21;overflow-y:auto;padding:calc(16px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) 20px;display:flex;flex-direction:column;gap:16px}
+/* Photo details dock as a right-hand column; the grid stays clickable so you can jump between photos. */
+.main.has-panel{grid-template-columns:var(--rail-w,280px) 14px minmax(0,1fr) min(400px,38vw);max-width:none}
+.panel{min-width:0;background:var(--surface);border-left:1px solid var(--line);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding:16px 16px 32px 20px;display:flex;flex-direction:column;gap:16px}
+.tile.current{box-shadow:0 0 0 3px var(--fg)}
+.tile.current.sel{box-shadow:0 0 0 3px var(--accent)}
+@media (max-width:760px){
+  .panel{position:fixed;inset:0;z-index:21;border-left:0;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+}
 .panel .ph{aspect-ratio:4/3;border-radius:8px;width:100%}
 .ptop{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .ptop h2{font-family:var(--display);font-size:18px;margin:0;overflow-wrap:anywhere}
@@ -245,6 +254,7 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
     <div class="bar" id="bar"></div>
     <div class="grid" id="grid"></div>
   </main>
+  <aside class="panel" id="panel" hidden aria-label="Photo details"></aside>
 </div>
 
 <div class="selbar" id="selbar" hidden>
@@ -255,7 +265,6 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 </div>
 
 <div class="scrim" id="scrim" hidden></div>
-<aside class="panel" id="panel" hidden aria-label="Photo details"></aside>
 <div class="toast" id="toast" hidden></div>
 
 <div class="scrim" id="iscrim" hidden></div>
@@ -382,7 +391,7 @@ function renderRail(list){
     const L=label(g);
     return `<section class="grp" data-grp="${g}" style="--c:${COLORS[g]}"><h3>`+
       `<button class="grip" data-grip="${g}" title="Drag to reorder" aria-label="Move ${L}. Drag, or press the up and down arrow keys">${GRIP}</button>`+
-      `<button class="ghead" data-toggle="${g}" aria-expanded="${!shut}"><svg class="caret" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 4.5 3 3 3-3"/></svg><i></i>${L}<em>${nOn?nOn+" selected":shut?entries.length:""}</em></button>`+
+      `<button class="ghead" data-toggle="${g}" aria-expanded="${!shut}"><svg class="caret" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 4.5 3 3 3-3"/></svg><i></i>${L}<em>${shut?entries.length:""}</em></button>`+
       `<button class="hbtn" data-sort="${g}" title="Tags sorted ${SORTS[m][1]}. Click to change" aria-label="Sort ${L} tags. Now ${SORTS[m][1]}">${SORTS[m][0]}</button>`+
       (g!=="year"?`<button class="hbtn" data-add="${g}" title="Add a tag to ${L}" aria-label="Add a tag to ${L}" aria-expanded="${state.adding===g}">+</button>`:"")+`</h3>`+
       (state.adding===g?`<form class="newtag" data-newtag="${g}"><input id="newtag-${g}" placeholder="New ${L.toLowerCase()} tag" autocomplete="off" aria-label="New ${L} tag"><button class="btn primary">Add</button></form>`:"")+
@@ -404,7 +413,7 @@ function renderGrid(list){
   const g=$("grid");
   g.classList.toggle("selecting",state.sel.size>0);
   if(!list.length){g.innerHTML=`<div class="empty" style="grid-column:1/-1">No photos match. Remove a filter or try a different word.</div>`;return;}
-  g.innerHTML=list.map(p=>`<button class="tile${state.sel.has(p.id)?" sel":""}" data-id="${p.id}" aria-label="${p.file}">
+  g.innerHTML=list.map(p=>`<button class="tile${state.sel.has(p.id)?" sel":""}${state.open===p.id?" current":""}"${state.open===p.id?' aria-current="true"':""} data-id="${p.id}" aria-label="${p.file}">
     <span class="ph" style="${art(p)}"></span>
     <span class="chk" data-chk="${p.id}" role="checkbox" aria-checked="${state.sel.has(p.id)}" aria-label="Select"></span>
     ${p.fav?'<span class="fav">★</span>':""}${p.added?'<span class="new">New</span>':""}
@@ -434,8 +443,17 @@ function renderPanel(){
       <datalist id="tagList">${[...new Set([...photos.flatMap(x=>Object.values(x.tags).flat()),...Object.values(state.extra).flatMap(s=>[...s])])].map(t=>`<option value="${t}">`).join("")}</datalist>
     </div>`;
 }
-function openP(id){state.open=id;$("panel").hidden=false;$("scrim").hidden=false;renderPanel();}
-function closeP(){state.open=null;$("panel").hidden=true;$("scrim").hidden=true;}
+function openP(id){
+  state.open=id;$("panel").hidden=false;document.querySelector(".main").classList.add("has-panel");render();
+  document.querySelector(".tile.current")?.scrollIntoView({block:"nearest"});
+}
+function closeP(){if(state.open==null)return;state.open=null;$("panel").hidden=true;document.querySelector(".main").classList.remove("has-panel");render();}
+// With a photo open, left/right arrow keys step through the photos (unless you're typing).
+document.addEventListener("keydown",e=>{
+  if(state.open==null||e.target.closest("input,select,textarea")||(e.key!=="ArrowLeft"&&e.key!=="ArrowRight"))return;
+  const l=visible(),i=l.findIndex(x=>x.id===state.open);if(i<0)return;
+  e.preventDefault();openP(l[(i+(e.key==="ArrowRight"?1:l.length-1))%l.length].id);
+});
 function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(t._h);t._h=setTimeout(()=>t.hidden=true,1800);}
 function guessGroup(t){for(const p of photos)for(const g in GROUPS)if(p.tags[g].includes(t))return g;for(const g in state.extra)if(state.extra[g].has(t))return g;return "things";}
 
