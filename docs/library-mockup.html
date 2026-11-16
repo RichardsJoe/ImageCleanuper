@@ -59,8 +59,29 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 select.btn{padding-right:8px}
 
 /* Main */
-.main{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;max-width:1400px;margin:0 auto;padding-block:20px}
-@media (max-width:760px){.main{grid-template-columns:minmax(0,1fr)} .rail{display:none} .rail.open{display:block}}
+/* App shell: header stays put; the category column and the photo grid each scroll on their own. */
+html,body{height:100%}
+body{display:flex;flex-direction:column}
+.flow,.top{flex:none}
+.main{flex:1;min-height:0;display:grid;grid-template-columns:var(--rail-w,280px) 14px minmax(0,1fr);width:100%;max-width:1400px;margin:0 auto}
+.rail{overflow-y:auto;overscroll-behavior:contain;padding-block:20px 32px;padding-right:6px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.rail::-webkit-scrollbar{width:10px}
+.rail::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;border:2px solid var(--bg)}
+.rail::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+.content{overflow-y:auto;min-width:0;padding-block:20px 80px;padding-left:10px}
+.resizer{position:relative;cursor:col-resize;touch-action:none;outline:none}
+.resizer::after{content:"";position:absolute;top:0;bottom:0;left:50%;width:1px;transform:translateX(-50%);background:var(--line);transition:background .12s,width .12s}
+.resizer::before{content:"";position:absolute;top:50%;left:50%;width:6px;height:36px;transform:translate(-50%,-50%);border-radius:4px;background:var(--surface);border:1px solid var(--line);z-index:1}
+.resizer:hover::after,.resizer.active::after,.resizer:focus-visible::after{background:var(--accent);width:3px}
+.resizer:hover::before,.resizer.active::before,.resizer:focus-visible::before{border-color:var(--accent)}
+body.is-resizing,body.is-resizing *{cursor:col-resize!important;user-select:none}
+@media (max-width:760px){
+  html,body{height:auto} body{display:block}
+  .main{display:block}
+  .rail{display:none;overflow:visible;padding-right:0} .rail.open{display:block}
+  .resizer{display:none}
+  .content{overflow:visible;padding-left:0}
+}
 .rail h3,.ghost h3{font-family:var(--display);font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 6px;display:flex;align-items:center;gap:2px}
 .grp{display:flex;flex-direction:column;border-radius:8px;margin-top:14px}
 .grp:first-child{margin-top:0}
@@ -83,15 +104,19 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 .newtag{display:flex;gap:6px;margin:0 0 6px 22px}
 .newtag input{flex:1;min-width:0;border:1px solid var(--accent);background:var(--surface);border-radius:6px;padding:5px 8px}
 .newtag .btn{padding:4px 10px}
-.addcat{margin-top:16px;font-weight:500}
-.rail>.newtag{margin:16px 0 0}
+.railtop{position:sticky;top:-20px;z-index:3;background:var(--bg);display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:-20px;padding-block:14px 10px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.railtop span{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.addcat{padding:4px 10px;font-size:13px;font-weight:500}
+.addcat[aria-expanded]{border-color:var(--accent);color:var(--accent)}
+.rail>.newtag{margin:0 0 12px}
+.railtop+.grp,.rail>.newtag+.grp{margin-top:0}
 .rail h3 i,.ghost h3 i{width:8px;height:8px;border-radius:2px;background:var(--c);flex:none}
 .ghead{display:flex;align-items:center;gap:8px;flex:1;min-width:0;border:0;background:transparent;padding:4px 8px 4px 2px;border-radius:6px;font:inherit;letter-spacing:inherit;text-transform:inherit;text-align:left}
 .ghead:hover{background:var(--sunk)}
 .ghead em{margin-left:auto;white-space:nowrap;font-family:var(--body);font-style:normal;font-weight:500;text-transform:none;letter-spacing:0;font-size:12px;color:var(--muted)}
 .caret{flex:none;color:var(--muted);transition:transform .15s}
 .ghead[aria-expanded="false"] .caret{transform:rotate(-90deg)}
-.facet{display:flex;flex-direction:column;gap:2px;max-height:228px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding-right:2px}
+.facet{display:flex;flex-direction:column;gap:2px;max-height:228px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding-right:2px}
 .facet::-webkit-scrollbar{width:8px}
 .facet::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;border:2px solid var(--bg)}
 .facet::-webkit-scrollbar-thumb:hover{background:var(--muted)}
@@ -212,7 +237,8 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 
 <div class="main wrap">
   <nav class="rail" id="rail" aria-label="Filters"></nav>
-  <main style="min-width:0">
+  <div class="resizer" id="resizer" role="separator" aria-orientation="vertical" aria-label="Resize filter panel" aria-valuemin="200" aria-valuemax="520" tabindex="0" title="Drag to resize. Double-click to reset"></div>
+  <main class="content">
     <div class="bar" id="bar"></div>
     <div class="grid" id="grid"></div>
   </main>
@@ -342,7 +368,9 @@ function renderRail(list){
   const scrolls={};$("rail").querySelectorAll(".grp").forEach(s=>{const f=s.querySelector(".facet");if(f)scrolls[s.dataset.grp]=f.scrollTop;});
   queueMicrotask(()=>$("rail").querySelectorAll(".grp").forEach(s=>{const f=s.querySelector(".facet");if(f&&scrolls[s.dataset.grp])f.scrollTop=scrolls[s.dataset.grp];}));
   for(const g in state.extra) for(const t of state.extra[g]) (total[g]??={})[t]??=0;
-  $("rail").innerHTML=state.order.map(g=>{
+  const top=`<div class="railtop"><span>Categories</span><button class="btn addcat" data-addcat${state.adding==="__cat"?' aria-expanded="true"':""}>+ Add category</button></div>`+
+    (state.adding==="__cat"?`<form class="newtag" data-newcat><input id="newcat" placeholder="Category name, e.g. Activities" autocomplete="off" aria-label="New category name"><button class="btn primary">Add</button></form>`:"");
+  $("rail").innerHTML=top+state.order.map(g=>{
     const m=state.tagSort[g]||"az",tg=total[g]||{};
     const isFav=t=>state.favTags.has(g+"|"+t);
     const entries=Object.keys(tg).sort((a,b)=>(isFav(b)-isFav(a))||(m==="az"?a.localeCompare(b,undefined,{numeric:true}):m==="za"?b.localeCompare(a,undefined,{numeric:true}):(tg[b]-tg[a])||a.localeCompare(b)));
@@ -359,7 +387,7 @@ function renderRail(list){
       (entries.length?entries.map((t,i)=>{const on=state.filters.some(f=>f.g===g&&f.t===t);const n=counts[g]?.[t]||0;const fav=isFav(t);
         return `<div class="trow${fav?" fav":""}${fav&&i===nFav-1&&nFav<entries.length?" lastfav":""}"><button class="tag${on?" on":""}${!n&&!on?" zero":""}" data-g="${g}" data-t="${t}" aria-pressed="${on}"${!n&&!on?` disabled title="${tg[t]?"No photos match with the current filters":"No photos have this tag yet"}"`:""}><span>${t}</span><em>${n}</em></button>`+
           `<button class="star" data-star="${g}|${t}" aria-pressed="${fav}" aria-label="${fav?"Remove":"Add"} ${t} ${fav?"from":"to"} favorites" title="${fav?"Unfavorite":"Favorite: keep at the top"}">${fav?"★":"☆"}</button></div>`;}).join(""):`<span class="hint" style="padding:4px 8px">No tags yet. Use + to add one.</span>`)+`</div></section>`;
-  }).join("")+(state.adding==="__cat"?`<form class="newtag" data-newcat><input id="newcat" placeholder="Category name, e.g. Activities" autocomplete="off" aria-label="New category name"><button class="btn primary">Add</button></form>`:`<button class="link addcat" data-addcat>+ Add category</button>`);
+  }).join("");
   if(state.focusNew){state.focusNew=false;$("rail").querySelector(".newtag input")?.focus();}
 }
 function renderBar(list){
@@ -474,7 +502,7 @@ function addTag(g,t){
 }
 function addCategory(name){
   const g="c"+Date.now();GROUPS[g]=name;COLORS[g]="var(--accent)";photos.forEach(p=>p.tags[g]=[]);
-  state.order.push(g);save(ORDER_KEY,state.order);state.adding=g;state.focusNew=true;
+  state.order.unshift(g);save(ORDER_KEY,state.order);state.adding=g;state.focusNew=true;
 }
 $("rail").addEventListener("submit",e=>{
   e.preventDefault();const f=e.target,v=f.querySelector("input").value.replace(/[<>"&`]/g,"").trim();
@@ -539,5 +567,20 @@ $("panel").addEventListener("click",e=>{
 });
 $("panel").addEventListener("submit",e=>{e.preventDefault();const p=photos[state.open];const t=$("newTag").value.trim();if(!t)return;
   const g=$("newGroup").value;if(!p.tags[g].includes(t))p.tags[g].push(t);render();setTimeout(()=>$("newTag")?.focus());});
+// Drag the divider to resize the category column. Arrow keys work too; double-click resets.
+const RW_KEY="railWidth",RW_DEFAULT=280;
+function setRW(w){w=Math.max(200,Math.min(520,Math.round(w)));document.documentElement.style.setProperty("--rail-w",w+"px");$("resizer").setAttribute("aria-valuenow",w);return w;}
+try{const w=+localStorage.getItem(RW_KEY);setRW(w||RW_DEFAULT);}catch(e){setRW(RW_DEFAULT);}
+let rs=null;
+$("resizer").addEventListener("pointerdown",e=>{if(e.button!==0)return;e.preventDefault();rs={x:e.clientX,w:$("rail").getBoundingClientRect().width};$("resizer").setPointerCapture(e.pointerId);$("resizer").classList.add("active");document.body.classList.add("is-resizing");});
+$("resizer").addEventListener("pointermove",e=>{if(rs)setRW(rs.w+e.clientX-rs.x);});
+function endRs(){if(!rs)return;rs=null;$("resizer").classList.remove("active");document.body.classList.remove("is-resizing");save(RW_KEY,Math.round($("rail").getBoundingClientRect().width));}
+$("resizer").addEventListener("pointerup",endRs);
+$("resizer").addEventListener("pointercancel",endRs);
+$("resizer").addEventListener("dblclick",()=>save(RW_KEY,setRW(RW_DEFAULT)));
+$("resizer").addEventListener("keydown",e=>{
+  if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;e.preventDefault();
+  save(RW_KEY,setRW($("rail").getBoundingClientRect().width+(e.key==="ArrowRight"?16:-16)));
+});
 render();
 </script>
