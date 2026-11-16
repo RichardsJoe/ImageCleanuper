@@ -91,7 +91,10 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 .ghead em{margin-left:auto;white-space:nowrap;font-family:var(--body);font-style:normal;font-weight:500;text-transform:none;letter-spacing:0;font-size:12px;color:var(--muted)}
 .caret{flex:none;color:var(--muted);transition:transform .15s}
 .ghead[aria-expanded="false"] .caret{transform:rotate(-90deg)}
-.facet{display:flex;flex-direction:column;gap:2px}
+.facet{display:flex;flex-direction:column;gap:2px;max-height:228px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding-right:2px}
+.facet::-webkit-scrollbar{width:8px}
+.facet::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;border:2px solid var(--bg)}
+.facet::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 .trow{display:flex;align-items:center;gap:2px}
 .trow.lastfav{border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:4px}
 .facet .tag{flex:1;min-width:0;display:flex;justify-content:space-between;gap:8px;border:0;background:transparent;text-align:left;padding:5px 8px;border-radius:6px}
@@ -335,6 +338,9 @@ function renderRail(list){
   // Only the counts change; tags with no matching photos are greyed out, not removed.
   const tally=ps=>{const c={};ps.forEach(p=>allTags(p).forEach(([g,t])=>{(c[g]??={})[t]=(c[g][t]||0)+1;}));return c;};
   const total=tally(photos),counts=tally(list);
+  // Each category scrolls on its own; remember where each list was scrolled so a redraw doesn't jump to the top.
+  const scrolls={};$("rail").querySelectorAll(".grp").forEach(s=>{const f=s.querySelector(".facet");if(f)scrolls[s.dataset.grp]=f.scrollTop;});
+  queueMicrotask(()=>$("rail").querySelectorAll(".grp").forEach(s=>{const f=s.querySelector(".facet");if(f&&scrolls[s.dataset.grp])f.scrollTop=scrolls[s.dataset.grp];}));
   for(const g in state.extra) for(const t of state.extra[g]) (total[g]??={})[t]??=0;
   $("rail").innerHTML=state.order.map(g=>{
     const m=state.tagSort[g]||"az",tg=total[g]||{};
