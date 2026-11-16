@@ -6,6 +6,34 @@ AI suggests most of the tags; you only answer what it isn't sure about.
 
 Clickable mockup: [`library-mockup.html`](library-mockup.html)
 
+## Design guide (UI conventions)
+
+Rules agreed while reviewing the mockup. New screens follow these.
+
+### Buttons and actions
+- **Adding something uses a small `+` icon button** on the header row it belongs to: `+` on a category header adds a tag, `+` on the Categories header adds a category. No wordy "+ Add …" buttons in panels or lists. Every icon button has a tooltip and screen-reader label ("Add a tag to People").
+- An icon button whose inline box is open shows the accent colour until it closes.
+- Inline add boxes open right under their header. Enter saves, Esc cancels, and the box gets focus straight away.
+- Full text buttons are only for the main page actions ("+ Add folder", "Start tagging", "Done").
+
+### Lists of tags
+- Tags are **A–Z by default**. Each category has its own sort toggle on its header (A–Z → Z–A → Most photos). Year defaults to newest first.
+- **Favorites:** a ☆ appears on hover (always visible on touch screens). A starred tag moves to the top of its category, with a thin line under the favorites.
+- **The list never reshuffles while filtering.** Tags keep their place. Counts update, and tags with no matching photos are greyed out instead of removed.
+- **Categories collapse** from their header. A collapsed header shows its tag count, or "N selected" if filters are on inside it.
+- **Categories reorder by dragging** the ⠿ handle (or with the arrow keys). While dragging, a floating copy with a shadow follows the pointer and a dashed outline shows where it will drop.
+
+### Layout and scrolling
+- The header and search bar stay fixed. The category column and the photo grid each scroll on their own; scrolling one never moves the other.
+- Each category's tag list has its own scrollbar after about 7 tags, and the scroll position is kept when the list redraws.
+- The category column is resizable with a drag handle between it and the grid (200–520 px, double-click to reset). Widths, order, sort, collapsed state and favorites are remembered.
+- Headers in a column line up: name on the left, small controls (sort, `+`) on the right, in the same positions on every row.
+
+### Search
+- Selected tags appear as coloured chips inside the search box, in front of the typed text. Remove a chip with its × or Backspace.
+- An **×** at the right end of the search box clears all chips and text (Esc does the same). It only shows when there is something to clear.
+- Commas and spaces both separate search words.
+
 ## Workflow
 
 1. **Add folder.** Pick a folder and choose which AI taggers to run. Nothing is moved or copied.
