@@ -284,6 +284,15 @@ MIGRATIONS: list[str] = [
         counts TEXT                       -- JSON
     );
     """,
+    # 12: Finish. A finished file's original now lives only in the library (and the backup), so it
+    # stays part of the plan even though it's gone from the photo folder or its folder was removed.
+    """
+    ALTER TABLE files ADD COLUMN finished_at REAL;
+    DROP VIEW active_files;
+    CREATE VIEW active_files AS
+        SELECT f.* FROM files f JOIN sources s ON s.id = f.source_id
+        WHERE (s.enabled = 1 AND f.missing = 0) OR f.finished_at IS NOT NULL;
+    """,
 ]
 
 

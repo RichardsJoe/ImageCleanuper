@@ -198,6 +198,8 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 ### Phase 4 as built (so far)
 - **Duplicates & bursts screen:** pick one or several copies to keep, the rest leave the library (Recycle Bin at Finish); one choice can apply to every group; Ctrl+Z undoes a whole click. Burst shots (same camera, seconds apart) keep the sharpest by default.
 - **Approve and sort** copies the plan into your library (originals untouched until Finish). Fixed and cut-out photos are copied as their fixed JPEG; multi-photo scans also go to `Old Family Photos/Original Scans`. Name clashes get `_2`, `_3` in an order that depends only on the photos, so names never swap between sorts. Each later sort only adds, updates or removes what changed. The app only ever changes files it made: a library file you edited, or a file of yours in the way, is left alone and reported. Folders left empty are deleted. Special folders get a READ ME.
+- **Finish** (type FINISH): each original is checked again (unchanged since the backup, in a verified zip, copy in the library), its library copies get the original's dates, then the original leaves its old folder. Copies you removed go to the Recycle Bin. Folders left empty are deleted (Thumbs.db / desktop.ini don't count); anything else is left alone. Every step is journaled, so a crash is finished or undone on the next start. Finished photos stay in the plan for good, and new folders for them are copied from the library.
+- **`_Add New Photos`** in the library: drop photos (or folders) in, Run, and they're sorted like the rest; Finish empties it.
 - **New photos later:** only new or changed files are analysed and face-scanned; everything you've taught (names, strangers, yes/no answers, copy choices) is kept and applied to them automatically.
 
 ### Parked ideas (not in the current plan)
@@ -233,3 +235,4 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 18. 2026-11-14 · v18: One Start review queue; QA renamed Accuracy check (folder `_Accuracy Check`); type FINISH to confirm.
 19. 2026-11-15 · v19: Upright prints via faces (auto / ask / leave), local image model as second opinion in phase 3, no Claude for rotation; Approve and sort stays in phase 4; Enhance parked.
 20. 2026-11-16 · v20: Phase 4: duplicates & bursts screen; Approve and sort copies the plan into the library (Original Scans, stable clash names, never touches your files).
+21. 2026-11-16 · v21: Finish (checked moves, Recycle Bin for removed copies, empty folders deleted, crash recovery); _Add New Photos drop folder.

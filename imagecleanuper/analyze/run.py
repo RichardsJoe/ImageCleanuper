@@ -33,7 +33,8 @@ def pending(cat: Catalog) -> list:
     return cat.q(
         """
         SELECT f.* FROM active_files f
-        WHERE (f.status = 'new' OR (f.status IN ('analyzed', 'could_not_open') AND f.analysis_version < ?))
+        WHERE (f.status = 'new' OR (f.status IN ('analyzed', 'could_not_open') AND f.analysis_version < ?
+                                    AND f.finished_at IS NULL))   -- finished originals can't be re-read
           AND f.busy = 0
           AND f.sha256 IN (SELECT e.sha256 FROM backup_entries e
                            JOIN backup_parts p ON p.id = e.part_id WHERE p.verified = 1)

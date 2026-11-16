@@ -38,7 +38,7 @@ def pending(cat: Catalog) -> list:
     return cat.q(
         """
         SELECT a.id, a.derived_path, f.orig_path FROM assets a JOIN active_files f ON f.id = a.file_id
-        WHERE f.status = 'analyzed' AND f.kind = 'photo' AND a.ai_version < ?
+        WHERE f.status = 'analyzed' AND f.kind = 'photo' AND a.ai_version < ? AND f.finished_at IS NULL
         ORDER BY a.id
         """, (AI_VERSION,))
 

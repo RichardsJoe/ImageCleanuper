@@ -29,8 +29,8 @@ MUTED = ("#5d6a73", "#9aa5ad")
 WRAP = 680  # text width in the middle column
 
 
-def plural(n: int, word: str) -> str:
-    return f"{n:,} {word}" + ("" if n == 1 else "s")
+def plural(n: int, word: str, many: str | None = None) -> str:
+    return f"{n:,} " + (word if n == 1 else (many or word + "s"))
 
 
 class App(ctk.CTk):
@@ -478,8 +478,11 @@ class App(ctk.CTk):
         if not info.get("last_sort"):
             return ("Check the plan, then sort", "The report shows where every photo will go. Approve and sort "
                     "copies them into your library; your originals stay put.", "Open report", self.show_report)
+        if info.get("finished"):
+            return ("Your library is up to date", "Add photos to a photo folder (or _Add New Photos) and run "
+                    "again; they're sorted the same way.", "Start run", self.start_run)
         return ("Your library is sorted", "Run again whenever you add photos. When you're happy with "
-                "everything, Finish moves the originals in.", "Open report", self.show_report)
+                "everything, Finish moves the originals in.", "Open Finish", self.show_finish)
 
     def show_home(self):
         import datetime as dt
@@ -671,8 +674,8 @@ class App(ctk.CTk):
                     self.error(msg[1])
                 elif kind == "sort_progress":
                     self._sort_progress(*msg[1:])
-                elif kind == "sort_done":
-                    self._sort_finished(msg[1])
+                elif kind == "job_done":
+                    msg[1](msg[2])
                 elif kind == "restore_done":
                     self.show_restore(result=msg[1])
         except queue.Empty:
@@ -1223,15 +1226,21 @@ class App(ctk.CTk):
 
     # ---- sorting (wireframe 06 layout, one bar) ------------------------------------------
     def start_sort(self):
+        self._job("Sorting into your library", "Copies only. Your originals stay where they are until Finish.",
+                  "Sort", "changes", lambda prog: app_mod.sort_library(self.paths, self.settings, prog),
+                  self._sort_finished)
+
+    def _job(self, title, subtitle, bar_label, unit, work, finished):
+        """A one-bar progress screen (wireframe 06 layout) for Approve and sort and Finish."""
         import threading as _th
         if self.runner is not None or getattr(self, "sorting", None):
             return
-        b = self._screen("Sorting into your library", nav="run", nav_locked=True, subtitle=
-                         "Copies only. Your originals stay where they are until Finish.")
+        self._job_unit = unit
+        b = self._screen(title, nav="run", nav_locked=True, subtitle=subtitle)
         row = ctk.CTkFrame(b, fg_color="transparent")
         row.pack(fill="x", pady=(8, 0))
         row.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(row, text="Sort", font=ctk.CTkFont(size=15, weight="bold"), anchor="w", width=150
+        ctk.CTkLabel(row, text=bar_label, font=ctk.CTkFont(size=15, weight="bold"), anchor="w", width=150
                      ).grid(row=0, column=0, sticky="w", pady=12)
         self.sort_bar = ctk.CTkProgressBar(row)
         self.sort_bar.set(0)
@@ -1262,10 +1271,9 @@ class App(ctk.CTk):
 
         def worker():
             try:
-                res = app_mod.sort_library(self.paths, self.settings, progress)
-                self.msgs.put(("sort_done", res))
+                self.msgs.put(("job_done", finished, work(progress)))
             except app_mod.Cancelled:
-                self.msgs.put(("sort_done", None))
+                self.msgs.put(("job_done", finished, None))
             except Exception as e:
                 log.get("ui").exception("sort failed")
                 self.msgs.put(("error", e))
@@ -1277,7 +1285,7 @@ class App(ctk.CTk):
             return
         if total:
             self.sort_bar.set(done / total)
-            self.sort_status.configure(text=f"{done:,} of {total:,} changes")
+            self.sort_status.configure(text=f"{done:,} of {total:,} {self._job_unit}")
         else:
             self.sort_status.configure(text=label + "…")
         if detail and _t.time() - self._last_thumb > 1.5:
@@ -1331,31 +1339,95 @@ class App(ctk.CTk):
 
     # ---- finish (wireframe 13) ------------------------------------------------------
     def show_finish(self):
+        import datetime as dt
+        from .. import finish as finish_mod
         info = self._counts()
         b = self._screen("Finish: move originals into your library", nav="finish", review_count=info["review"],
                          subtitle="Do this once, when you're happy with how everything is sorted.")
-        ok = info["files"] and info["backed_up"] >= info["files"]
-        ctk.CTkLabel(b, text=("✓  " if ok else "!  ") + (f"Backup verified ({plural(info['backed_up'], 'file')})"
-                     if ok else "Run first so everything is backed up"), text_color=GREEN if ok else AMBER,
-                     anchor="w").pack(fill="x")
-        ctk.CTkLabel(b, text="!  Moving the originals arrives in the next update (sorting works now)", text_color=AMBER,
-                     anchor="w").pack(fill="x", pady=(4, 12))
+        if self.paths.catalog.exists():
+            cat = Catalog(self.paths.catalog)
+            try:
+                fp = finish_mod.plan(cat, self.settings.library, str(self.paths.data / "derived"),
+                                     self.settings.categories)
+            finally:
+                cat.close()
+        else:
+            fp = finish_mod.Plan(problems=["Run first so everything is backed up."])
+
+        def check(ok, text):
+            ctk.CTkLabel(b, text=("✓  " if ok else "!  ") + text, text_color=GREEN if ok else AMBER, anchor="w",
+                         justify="left", wraplength=WRAP).pack(fill="x", pady=(0, 4))
+        if fp.backup_date:
+            check(True, f"Backup verified on {dt.datetime.fromtimestamp(fp.backup_date):%d %b} "
+                        f"({plural(fp.backup_files, 'file')})")
+        else:
+            check(False, "Run first so everything is backed up")
+        for prob in fp.problems:
+            check(False, prob)
+        if not fp.problems:
+            check(True, "Your library is sorted and up to date")
+        if info.get("review"):
+            check(False, f"{plural(info['review'], 'photo')} still waiting for review. You can finish anyway; "
+                         "they stay sorted as they are now.")
+        ctk.CTkLabel(b, text="", height=6).pack()
         box = ctk.CTkFrame(b)
         box.pack(fill="x")
         ctk.CTkLabel(box, text="What will happen", font=ctk.CTkFont(weight="bold"),
                      anchor="w").pack(fill="x", padx=16, pady=(12, 4))
-        for line in ("Originals move into your sorted library (fixed photos stay as their fixed version)",
-                     "Folders left completely empty are deleted; folders with anything else are left alone",
-                     "Every move is logged first, so an interruption can be finished or undone",
-                     f"Your backup zips stay in {self.settings.backup}"):
+        lines = [f"{plural(len(fp.move), 'original')} move into {self.settings.library} "
+                 "(fixed photos stay as their fixed version)"]
+        if fp.recycle:
+            lines.append(f"{plural(len(fp.recycle), 'copy', 'copies')} you chose to remove go to the Recycle Bin")
+        lines += ["Folders left completely empty are deleted; folders with anything else are left alone",
+                  "Every move is logged first, so an interruption can be finished or undone",
+                  f"Your backup zips stay in {self.settings.backup}"]
+        if fp.left:
+            lines.append(f"{plural(len(fp.left), 'file')} stay where they are for now (not sorted yet)")
+        for line in lines:
             ctk.CTkLabel(box, text="• " + line, anchor="w", justify="left", wraplength=WRAP - 40
                          ).pack(fill="x", padx=16)
         ctk.CTkLabel(box, text="", height=6).pack()
-        self._footer(back=("Home", self.show_home))
-        ctk.CTkButton(self.footer_area, text="Move originals  (next update)", state="disabled",
-                      width=260, height=38, fg_color=("gray80", "gray30"),
-                      text_color_disabled=("gray45", "gray60")).pack(side="right")
-        self._hotkey_line("Esc Home")
+        row = ctk.CTkFrame(b, fg_color="transparent")
+        row.pack(fill="x", pady=(16, 0))
+        ctk.CTkLabel(row, text="Type FINISH to confirm:", anchor="w").pack(side="left")
+        word = ctk.CTkEntry(row, width=200, height=34, state="normal" if fp.ready else "disabled")
+        word.pack(side="left", padx=12)
+        self._footer(back=("Cancel", self.show_home))
+        go = ctk.CTkButton(self.footer_area, text="Move originals  (Enter)", fg_color=BLUE, width=240, height=38,
+                           state="disabled", command=lambda: start())
+        go.pack(side="right")
+
+        def typed(_=None):
+            ok = fp.ready and word.get().strip().upper() == "FINISH"
+            go.configure(state="normal" if ok else "disabled")
+            return ok
+
+        def start():
+            if typed():
+                self._job("Moving originals into your library", "Each original is checked against the backup "
+                          "and your library before it leaves its old folder.", "Finish", "photos",
+                          lambda prog: app_mod.finish_library(self.paths, self.settings, prog), self._finish_done)
+        word.bind("<KeyRelease>", typed)
+        word.bind("<Return>", lambda e: start())
+        if fp.ready:
+            word.focus_set()
+        self._hotkey_line("Type FINISH, then Enter · Esc Cancel")
+
+    def _finish_done(self, res):
+        self.sorting = None
+        self.show_home()
+        if res is None:
+            self._notice("Finish paused", "Open Finish again to carry on. Nothing was lost.")
+            return
+        lines = [f"{plural(res.moved, 'original')} moved into your library."]
+        if res.recycled:
+            lines.append(f"{plural(res.recycled, 'copy', 'copies')} sent to the Recycle Bin.")
+        if res.folders_removed:
+            lines.append(f"{plural(res.folders_removed, 'empty folder')} deleted.")
+        if res.skipped:
+            lines.append(f"{plural(len(res.skipped), 'file')} were left where they are (changed since the backup, "
+                         "or not in your library yet). The log lists them.")
+        self._notice("Finished", "\n".join(lines))
 
     # ---- restore (wireframe 15) -------------------------------------------------------
     def show_restore(self, result=None):

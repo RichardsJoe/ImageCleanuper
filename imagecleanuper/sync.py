@@ -22,6 +22,7 @@ from .paths import is_inside, long_path
 
 _log = log.get("sync")
 README = "READ ME.txt"
+ADD_NEW = "_Add New Photos"     # drop new photos here; the next run picks them up, Finish empties it
 SPARE_BYTES = 200 * 1024 * 1024        # keep this much free on the library drive
 
 READMES = {
@@ -30,6 +31,8 @@ READMES = {
                    "Nothing here is deleted until you choose.",
     "_Junk": "Screenshots, receipts, blurry shots and other things that don't look like keepers.\n"
              "If something here is a real photo, say so in ImageCleanuper and it moves back.",
+    ADD_NEW: "Drop new photos and videos here (folders are fine too), then click Run in ImageCleanuper.\n"
+              "They're backed up and sorted like the rest. Finish moves them into the library.",
     "_Could Not Open": "Files ImageCleanuper couldn't read (damaged, or a format it doesn't know).\n"
                        "They are copied here untouched so nothing goes missing. The log says why.",
 }
@@ -96,7 +99,13 @@ def planned_items(pv: plan_mod.Preview, sha_of: dict[str, str] | None = None) ->
         if top in READMES and folder == top:
             rel = f"{safe_folder}/{README}"
             items[rel] = Item(rel, f"readme:{top}", data=(READMES[top] + "\n").encode("utf-8"))
+    rel = f"{ADD_NEW}/{README}"            # the drop-in folder always exists
+    items[rel] = Item(rel, f"readme:{ADD_NEW}", data=(READMES[ADD_NEW] + "\n").encode("utf-8"))
     return items
+
+
+def add_new_folder(library: str) -> str:
+    return os.path.join(library, ADD_NEW)
 
 
 @dataclass
@@ -131,8 +140,24 @@ def _src_fingerprint(it: Item, owned: dict | None) -> tuple[str, str | None]:
     return sha256_file(it.src), st
 
 
+def _use_library_copies(library: str, items: dict[str, Item], owned: dict[str, dict]) -> None:
+    """After Finish an original lives only in the library: copy new folders' copies from there."""
+    by_sha: dict[str, list[str]] = {}
+    for rel, o in owned.items():
+        by_sha.setdefault(o["src_sha"], []).append(rel)
+    for it in items.values():
+        if not it.src or not it.src_sha or os.path.exists(long_path(it.src)):
+            continue
+        for rel in sorted(by_sha.get(it.src_sha, [])):
+            cand = os.path.join(library, *rel.split("/"))
+            if rel != it.rel and os.path.exists(long_path(cand)) and owned[rel]["sha256"] == it.src_sha:
+                it.src = cand
+                break
+
+
 def diff(cat: Catalog, library: str, items: dict[str, Item]) -> Diff:
     owned = {r["rel_path"]: dict(r) for r in cat.q("SELECT * FROM owned_files")}
+    _use_library_copies(library, items, owned)
     d = Diff()
     for rel, it in items.items():
         o = owned.get(rel)
@@ -243,26 +268,6 @@ def sync_library(cat: Catalog, library: str, derived_dir: str, categories: dict 
     total, done = d.changes, 0
     touched_dirs: set[str] = set()
     try:
-        # Removals first, so a renamed folder (e.g. "mom" → "Mom") frees its names on Windows.
-        for o in d.remove:
-            dest = os.path.join(library, *o["rel_path"].split("/"))
-            done += 1
-            progress("Sorting into your library", done, total)
-            if os.path.exists(long_path(dest)):
-                if os.path.getsize(long_path(dest)) != o["size"] or sha256_file(dest) != o["sha256"]:
-                    res.edited_by_you.append(o["rel_path"])     # you changed it: never delete (R5)
-                    with cat.tx():
-                        cat.db.execute("DELETE FROM owned_files WHERE rel_path=?", (o["rel_path"],))
-                    continue
-                entry = cat.journal("sync_remove", {"dest": dest, "rel": o["rel_path"]})
-                remove_quietly(dest)
-                cat.journal_set(entry, "done")
-            touched_dirs.add(os.path.dirname(dest))
-            with cat.tx():
-                cat.db.execute("DELETE FROM owned_files WHERE rel_path=?", (o["rel_path"],))
-            res.removed += 1
-        _drop_empty_dirs(library, touched_dirs)
-
         for it, o in d.update:
             done += 1
             progress("Sorting into your library", done, total, it.src)
@@ -314,6 +319,33 @@ def sync_library(cat: Catalog, library: str, derived_dir: str, categories: dict 
             except (OSError, CopyVerifyError):
                 _log.exception("could not copy %s", it.rel)
                 res.failed.append(it.rel)
+        # Removals last: an original that now lives only in the library may be the source of a
+        # new copy made above. A path the plan still wants in different letter case (e.g. "mom" →
+        # "Mom") is the same file on Windows: only its record is dropped.
+        wanted = {rel.lower(): rel for rel in items}
+        for o in d.remove:
+            dest = os.path.join(library, *o["rel_path"].split("/"))
+            done += 1
+            progress("Sorting into your library", done, total)
+            twin = wanted.get(o["rel_path"].lower())
+            twin_path = twin and os.path.join(library, *twin.split("/"))
+            if twin_path and os.path.exists(long_path(dest)) and os.path.exists(long_path(twin_path)) \
+                    and os.path.samefile(long_path(dest), long_path(twin_path)):
+                pass
+            elif os.path.exists(long_path(dest)):
+                if os.path.getsize(long_path(dest)) != o["size"] or sha256_file(dest) != o["sha256"]:
+                    res.edited_by_you.append(o["rel_path"])     # you changed it: never delete (R5)
+                    with cat.tx():
+                        cat.db.execute("DELETE FROM owned_files WHERE rel_path=?", (o["rel_path"],))
+                    continue
+                entry = cat.journal("sync_remove", {"dest": dest, "rel": o["rel_path"]})
+                remove_quietly(dest)
+                cat.journal_set(entry, "done")
+            touched_dirs.add(os.path.dirname(dest))
+            with cat.tx():
+                cat.db.execute("DELETE FROM owned_files WHERE rel_path=?", (o["rel_path"],))
+            res.removed += 1
+        _drop_empty_dirs(library, touched_dirs)
     except BaseException:
         with cat.tx():
             cat.db.execute("UPDATE syncs SET state='stopped', ended_at=?, counts=? WHERE id=?",

@@ -105,13 +105,15 @@ def discover_files(cat: Catalog, run_id: int, excluded: list[str],
         def on_error(err: OSError) -> None:
             res.unreachable.append(f"{strip_long(getattr(err, 'filename', '') or '')}: {err.strerror}")
 
+        # A source inside an excluded folder (the library's _Add New Photos) is still searched.
+        skip = [ex for ex in excluded if not is_inside(root, ex)]
         for dirpath, dirs, files in os.walk(long_path(root), onerror=on_error, followlinks=False):
             kept = []
             for d in dirs:
                 full = os.path.join(dirpath, d)
                 if _is_link(full) or _hidden_or_system(full, d):
                     continue
-                if any(is_inside(full, ex) for ex in excluded):
+                if any(is_inside(full, ex) for ex in skip):
                     continue
                 kept.append(d)
             dirs[:] = sorted(kept)
