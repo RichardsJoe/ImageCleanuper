@@ -105,6 +105,7 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 .grp:hover .grip,.grip:focus-visible,.grp.dragging .grip{opacity:1}
 .grp.dragging .grip{cursor:grabbing}
 .hbtn{flex:none;border:0;background:transparent;color:var(--muted);font-family:var(--body);font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;min-width:26px;height:24px;padding:0 5px;border-radius:6px}
+.hbtn.gear{width:38px;height:38px;border-radius:8px;display:grid;place-items:center;padding:0}
 .hbtn:hover{background:var(--sunk);color:var(--fg)}
 .hbtn[data-add]{font-size:17px;font-weight:500;line-height:1}
 .newtag{display:flex;align-items:center;gap:4px;margin:0 0 6px 22px}
@@ -180,7 +181,7 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 .chip button{border:0;background:transparent;color:var(--muted);padding:0 4px;font-size:15px;line-height:1}
 .link{border:0;background:none;color:var(--accent);padding:4px}
 
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--thumb,170px),1fr));gap:12px}
 .tile{position:relative;border:0;padding:0;background:var(--surface);border-radius:8px;overflow:hidden;text-align:left;outline-offset:2px}
 .tile .ph{aspect-ratio:4/3;width:100%;display:block}
 .tile .meta{padding:8px 10px;display:flex;justify-content:space-between;gap:6px;font-size:12px;color:var(--muted)}
@@ -259,6 +260,80 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip.pick{padding:4px 10px}.chip.pick::before{display:none}
 .chip.pick.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+/* Settings: replaces the library view. Section list on the left, cards of settings on the right. */
+body.in-prefs .flow,body.in-prefs .top,body.in-prefs .main,body.in-prefs .selbar{display:none!important}
+.prefs{flex:1;min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);width:100%;max-width:1400px;margin:0 auto}
+.prefs-head{display:flex;align-items:center;gap:14px;padding-block:14px;border-bottom:1px solid var(--line)}
+.prefs-head h1{font-family:var(--display);font-size:20px;margin:0;flex:1}
+.btn.danger-ghost{color:var(--danger);border-color:transparent;background:transparent}
+.btn.danger-ghost:hover{border-color:var(--danger)}
+.confirm.resetall{margin:12px 0 0}
+.prefs-body{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:0}
+.prefs-nav{overflow-y:auto;padding:16px 12px 16px 0;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.prefs-nav button{display:flex;align-items:center;gap:10px;border:0;background:transparent;text-align:left;padding:8px 10px;border-radius:8px;color:var(--muted);font-weight:500;white-space:nowrap}
+.prefs-nav button:hover{background:var(--sunk);color:var(--fg)}
+.prefs-nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.prefs-nav svg{width:18px;height:18px;flex:none}
+.prefs-nav .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:auto}
+.prefs-main{overflow-y:auto;padding:22px 14px 80px 28px;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.psec{max-width:820px}
+.psec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px}
+.psec h2{font-family:var(--display);font-size:24px;margin:0}
+.psec .lead{color:var(--muted);margin:0 0 18px;max-width:65ch}
+.link-reset{border:0;background:none;color:var(--accent);font-weight:500;padding:4px 0;white-space:nowrap}
+.pgroup{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:18px}
+.pgroup-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) auto 32px;gap:14px;align-items:center;padding:12px 16px;border-top:1px solid var(--line)}
+.pgroup-h+.prow{border-top:0}
+.prow .pl{font-weight:500}
+.prow .pd{color:var(--muted);font-size:13px;margin-top:2px;max-width:60ch}
+.prow .pc{display:flex;align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap;min-width:0}
+.preset svg{width:16px;height:16px}
+.preset{color:var(--muted)}
+.tgl{position:relative;display:inline-block;width:40px;height:22px;flex:none}
+.tgl input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.tgl span{position:absolute;inset:0;border-radius:22px;background:var(--line);transition:background .15s;pointer-events:none}
+.tgl span::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.tgl input:checked+span{background:var(--accent)}
+.tgl input:checked+span::after{transform:translateX(18px)}
+.tgl input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg)}
+.seg button{border:0;background:transparent;padding:6px 12px;font-weight:500;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent);color:var(--accent-fg)}
+.pathin{display:flex;gap:6px;min-width:0;width:min(420px,100%)}
+.pathin input,.numin,.ptext{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 10px;min-width:0}
+.pathin input{flex:1;font-family:var(--mono);font-size:12px}
+.numin{width:76px;font-variant-numeric:tabular-nums}
+.src{display:grid;grid-template-columns:minmax(0,1fr) auto 32px;gap:10px;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+.src input[type=text]{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 10px;font-family:var(--mono);font-size:12px;min-width:0;width:100%}
+.src label{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);white-space:nowrap}
+.crow{display:grid;grid-template-columns:24px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 16px;border-top:1px solid var(--line)}
+.crow .cicon svg{width:18px;height:18px}
+.crow input{border:1px solid transparent;background:transparent;border-radius:6px;padding:5px 8px;font-weight:600;min-width:0;width:100%}
+.crow input:hover,.crow input:focus{border-color:var(--line);background:var(--bg)}
+.crow .swatches{padding:0;gap:4px}
+.crow .sw{width:16px;height:16px}
+.crow .acts{display:flex;gap:2px}
+.crow .confirm{grid-column:1/-1;margin:4px 0 4px}
+.trow2{display:grid;grid-template-columns:minmax(0,1fr) 140px 44px 28px 28px;gap:8px;align-items:center;padding:6px 16px;border-top:1px solid var(--line)}
+.trow2 input{border:1px solid transparent;background:transparent;border-radius:6px;padding:4px 8px;min-width:0;width:100%}
+.trow2 input:hover,.trow2 input:focus{border-color:var(--line);background:var(--bg)}
+.trow2 select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:4px 6px;min-width:0}
+.trow2 em{font-style:normal;color:var(--muted);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.trow2 .fav{color:var(--star)}
+.tagtools{display:flex;gap:8px;padding:10px 16px;flex-wrap:wrap}
+.tagtools input,.tagtools select{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 10px;min-width:0}
+.tagtools input{flex:1 1 200px}
+.ptagempty{padding:16px;color:var(--muted)}
+@media (max-width:760px){
+  .prefs-body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .prefs-nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:8px 0}
+  .prefs-main{padding:16px 0 80px}
+  .prow{grid-template-columns:minmax(0,1fr) 32px}.prow .pc{grid-column:1;justify-content:flex-start}.prow>.preset,.prow>span:last-child{grid-row:1;grid-column:2}
+  .trow2{grid-template-columns:minmax(0,1fr) 44px 28px 28px}.trow2 select{grid-column:1/-1;grid-row:2}
+  .prefs-head h1{font-size:18px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -289,6 +364,7 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
       <option value="fav">Favorites first</option>
     </select>
     <button class="btn primary" id="addBtn">+ Add folder</button>
+    <button class="hbtn gear" id="openPrefs" title="Settings" aria-label="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
   </div>
 </header>
 
@@ -301,6 +377,22 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
   </main>
   <aside class="panel" id="panel" hidden aria-label="Photo details"></aside>
 </div>
+
+<section class="prefs wrap" id="prefs" hidden aria-label="Settings">
+  <header class="prefs-head">
+    <button class="btn" id="closePrefs" title="Back to library (Esc)">← Library</button>
+    <h1>Settings</h1>
+    <button class="btn danger-ghost" id="resetAll">Reset all settings</button>
+  </header>
+  <div class="confirm resetall" id="resetAllBox" hidden role="alertdialog" aria-label="Reset all settings">
+    <p><strong>Reset all settings to their defaults?</strong> This resets folders, backups, AI tagging, appearance, category order and colors, tag sorting and the column width. Your photos, tags and categories are kept.</p>
+    <div><button class="btn danger" id="resetAllYes">Reset all</button><button class="btn" id="resetAllNo">Cancel</button></div>
+  </div>
+  <div class="prefs-body">
+    <nav class="prefs-nav" id="prefsNav" aria-label="Settings sections"></nav>
+    <div class="prefs-main" id="prefsMain"></div>
+  </div>
+</section>
 
 <div class="selbar" id="selbar" hidden>
   <span id="selcount"></span>
@@ -322,9 +414,9 @@ body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none}
     <div class="ptop"><h2>Add photos</h2><button class="btn" data-close>Cancel</button></div>
     <label class="field"><span>Folder</span><input id="impPath" value="D:\Photos\Phone backup 2024"></label>
     <p class="hint">Photos stay where they are. The library only stores tags and a small thumbnail.</p>
-    <h4 class="sub">What should AI tag?</h4>
+    <h4 class="sub">What should Claude tag?</h4>
     <div class="opts" id="opts"></div>
-    <label class="field row"><input type="checkbox" id="cloud"><span><strong>Ask Claude about unsure photos</strong><br><span class="hint">Optional. Sends a small copy of only the photos the local AI can't decide on. Off by default.</span></span></label>
+    <p class="hint" id="impAiNote">Tagging uses Claude with your API key. Change this, or switch to Manual only, in <button type="button" class="link" data-prefs="ai" style="padding:0">Settings › AI tagging</button>.</p>
     <button class="btn primary wide" id="impStart">Start tagging 1,248 photos</button>
   </div>
   <div id="impRun" hidden>
@@ -488,7 +580,7 @@ function pickCat(n){const i=$("newcat");i.value=n;i.closest("form").requestSubmi
 // Slim icon strip shown when the column is dragged narrower than labels can fit.
 function renderRailMini(){
   $("rail").innerHTML=`<button class="ricon rexpand" data-expand="" title="Show categories" aria-label="Show categories"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 7 5 5-5 5M13 7l5 5-5 5"/></svg></button><span class="rsep"></span>`+
-    state.order.filter(g=>g==="year"||GROUPS[g]).map(g=>{const L=label(g),n=state.filters.filter(f=>f.g===g).length;
+    state.order.filter(g=>(g==="year"&&(window.PREFS?.showYear??true))||GROUPS[g]).map(g=>{const L=label(g),n=state.filters.filter(f=>f.g===g).length;
       return `<button class="ricon" data-expand="${g}" style="--c:${COLORS[g]}" title="${L}" aria-label="${L}${n?", has selected tags":""}">${catIcon(g)}${n?"<b></b>":""}</button>`;}).join("");
 }
 function renderRail(list){
@@ -502,8 +594,8 @@ function renderRail(list){
   for(const g in state.extra) for(const t of state.extra[g]) (total[g]??={})[t]??=0;
   const top=`<div class="railtop"><span>Categories</span><button class="hbtn" data-addcat title="Add a category" aria-label="Add a category" aria-expanded="${state.adding==="__cat"}">+</button></div>`+
     (state.adding==="__cat"?`<form class="newtag catform" data-newcat><span class="cicon" id="catPrev" title="Icon is picked for you">${iconSvg("tag")}</span><input id="newcat" placeholder="Start typing, e.g. Pets" autocomplete="off" aria-label="New category name" role="combobox" aria-autocomplete="list" aria-controls="catSugg" aria-expanded="false"><button class="btn primary">Add</button><button type="button" class="hbtn cancel" data-cancel title="Cancel (Esc)" aria-label="Cancel">×</button></form><ul class="catsugg" id="catSugg" role="listbox" aria-label="Suggestions" hidden></ul>`:"");
-  $("rail").innerHTML=top+state.order.map(g=>{
-    const m=state.tagSort[g]||"az",tg=total[g]||{};
+  $("rail").innerHTML=top+state.order.filter(g=>g!=="year"||(window.PREFS?.showYear??true)).map(g=>{
+    const m=state.tagSort[g]||window.PREFS?.defaultTagSort||"az",tg=total[g]||{};
     const isFav=t=>state.favTags.has(g+"|"+t);
     const entries=Object.keys(tg).sort((a,b)=>(isFav(b)-isFav(a))||(m==="az"?a.localeCompare(b,undefined,{numeric:true}):m==="za"?b.localeCompare(a,undefined,{numeric:true}):(tg[b]-tg[a])||a.localeCompare(b)));
     const nFav=entries.filter(isFav).length;
@@ -529,6 +621,7 @@ function catExtras(g,L){
   if(state.menu===g)return `<div class="menu" role="menu" aria-label="${L} options">`+
     `<button role="menuitem" data-rename="${g}">Rename</button>`+
     `<div class="swatches" role="group" aria-label="Color"><span>Color</span>${PALETTE.map(c=>`<button class="sw${COLORS[g]===c?" on":""}" data-color="${g}|${c}" style="--sw:${c}" aria-label="Use this color" aria-pressed="${COLORS[g]===c}"></button>`).join("")}</div>`+
+    `<button role="menuitem" data-prefs="categories">Manage all categories…</button>`+
     `<button role="menuitem" class="danger" data-delask="${g}">Delete category…</button></div>`;
   if(state.renaming===g)return `<form class="newtag" data-renameform="${g}"><input id="rename-${g}" value="${L}" autocomplete="off" aria-label="Rename ${L}"><button class="btn primary">Save</button><button type="button" class="hbtn cancel" data-cancel title="Cancel (Esc)" aria-label="Cancel">×</button></form>`;
   if(state.confirmDel===g){
@@ -822,4 +915,270 @@ $("resizer").addEventListener("keydown",e=>{
   const right=e.key==="ArrowRight";applyRW(state.railMini?(right?state.railW:RW_MINI):state.railW+(right?16:-16));saveRW();
 });
 render();
+</script>
+<script>
+// ===== Settings =====
+// Every setting has a default; a small reset button appears next to any setting that differs from it.
+const PREFS_KEY="settings";
+const DEFAULTS={
+  sources:[{path:"D:\\Photos",sub:true},{path:"C:\\Users\\You\\Pictures",sub:true}],
+  watch:true, libraryMode:"inplace", libraryPath:"D:\\Photo Library", neverDelete:true,
+  backupOn:true, backupPath:"E:\\Photo Backups", backupWhen:"weekly", backupKeep:4, backupVerify:true,
+  aiMode:"ai", apiKeySet:false, taggers:TAGGERS.map(t=>!!t[2]), maxAutoTags:5, confidence:"balanced", claudeLimit:5,
+  showYear:true, defaultTagSort:"az",
+  learnNames:true, suggestTags:true,
+  theme:"system", thumb:"medium", showHowItWorks:true,
+  catalogPath:"C:\\Users\\You\\AppData\\ImageCleanuper", historyDays:"90",
+};
+const clone=o=>JSON.parse(JSON.stringify(o));
+const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const getP=(o,k)=>k.split(".").reduce((x,p)=>x?.[p],o);
+function setP(o,k,v){const ps=k.split("."),last=ps.pop();ps.reduce((x,p)=>x[p],o)[last]=v;}
+const escA=s=>String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+let S=clone(DEFAULTS);
+try{const saved=JSON.parse(localStorage.getItem(PREFS_KEY));if(saved&&typeof saved==="object")S={...S,...saved};}catch(e){}
+window.PREFS=S;
+const DEF_COLORS={...COLORS},DEF_NAMES={people:"People",places:"Places",events:"Events",things:"Things"};
+
+function applyS(){
+  const r=document.documentElement;
+  if(S.theme==="system")r.removeAttribute("data-theme");else r.setAttribute("data-theme",S.theme);
+  r.style.setProperty("--thumb",{small:"130px",medium:"170px",large:"240px"}[S.thumb]||"170px");
+  document.querySelector(".flow").hidden=!S.showHowItWorks;
+}
+function saveS(){window.PREFS=S;save(PREFS_KEY,S);applyS();render();}
+
+// ---- Controls ----
+const RESET_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+const TRASH_SVG='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+const UP_SVG='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>';
+const DOWN_SVG='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+function fmtDef(k){const v=getP(DEFAULTS,k);
+  if(typeof v==="boolean")return v?"On":"Off";
+  if(Array.isArray(v))return k==="sources"?`${v.length} folders`:k==="taggers"?"recommended set":String(v.length);
+  const labels={inplace:"Leave photos where they are",copy:"Copy into a library folder",weekly:"Weekly",daily:"Daily",monthly:"Monthly",manual:"Only when I ask",
+    balanced:"Balanced",ai:"AI tagging",system:"Match system",medium:"Medium",az:"A–Z","90":"90 days"};return labels[v]??String(v);}
+const changed=k=>!same(getP(S,k),getP(DEFAULTS,k));
+const resetBtn=(k,label)=>changed(k)?`<button class="hbtn preset" data-reset="${k}" title="Reset to default: ${escA(fmtDef(k))}" aria-label="Reset ${escA(label)} to default">${RESET_SVG}</button>`:"<span></span>";
+const row=(k,label,desc,ctl)=>`<div class="prow"><div><div class="pl">${label}</div>${desc?`<div class="pd">${desc}</div>`:""}</div><div class="pc">${ctl}</div>${resetBtn(k,label)}</div>`;
+const tgl=(k,label)=>`<label class="tgl"><input type="checkbox" data-set="${k}" ${getP(S,k)?"checked":""} aria-label="${escA(label)}"><span></span></label>`;
+const seg=(k,opts)=>`<div class="seg" role="group">${opts.map(([v,l])=>`<button data-seg="${k}|${v}" class="${String(getP(S,k))===String(v)?"on":""}" aria-pressed="${String(getP(S,k))===String(v)}">${l}</button>`).join("")}</div>`;
+const sel=(k,opts,label)=>`<select class="btn" data-set="${k}" aria-label="${escA(label)}">${opts.map(([v,l])=>`<option value="${v}" ${String(getP(S,k))===String(v)?"selected":""}>${l}</option>`).join("")}</select>`;
+const pathIn=(k,label)=>`<div class="pathin"><input type="text" data-set="${k}" value="${escA(getP(S,k))}" spellcheck="false" aria-label="${escA(label)}"><button class="btn" data-browse="${k}">Browse…</button></div>`;
+const numIn=(k,min,max,label)=>`<input type="number" class="numin" data-set="${k}" min="${min}" max="${max}" value="${getP(S,k)}" aria-label="${escA(label)}">`;
+const group=(title,body,extra="")=>`<div class="pgroup"><div class="pgroup-h"><span>${title}</span>${extra}</div>${body}</div>`;
+
+// ---- Sections ----
+const NAV_ICONS={
+  folders:'<path d="M3.5 6.5a1 1 0 0 1 1-1h4.5l2 2h8.5a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/>',
+  backup:'<path d="M12 3.5 4.5 6.5v5c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9v-5z"/><path d="m9 12 2 2 4-4"/>',
+};
+const navIcon=k=>NAV_ICONS[k]?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${NAV_ICONS[k]}</svg>`:iconSvg(k);
+const SECTIONS=[
+ {id:"folders",label:"Photo folders",icon:"folders",keys:["sources","watch","libraryMode","libraryPath","neverDelete"],
+  lead:"Where your photos are, and what the app is allowed to do with them.",
+  body:()=>group("Folders to watch",
+      S.sources.map((s,i)=>`<div class="src"><input type="text" data-set="sources.${i}.path" value="${escA(s.path)}" spellcheck="false" aria-label="Folder ${i+1}"><label><input type="checkbox" data-set="sources.${i}.sub" ${s.sub?"checked":""}> Subfolders</label><button class="hbtn" data-src-del="${i}" title="Stop watching this folder" aria-label="Remove folder">${TRASH_SVG}</button></div>`).join("")
+      ||'<div class="ptagempty">No folders yet. Use + to add one.</div>',
+      `<span style="display:flex;gap:2px">${changed("sources")?`<button class="hbtn preset" data-reset="sources" title="Reset to default: ${fmtDef("sources")}" aria-label="Reset folders to default">${RESET_SVG}</button>`:""}<button class="hbtn" data-src-add title="Add a folder" aria-label="Add a folder">+</button></span>`)
+    +group("Behavior",
+      row("watch","Watch for new photos","New photos in these folders are added and tagged automatically.",tgl("watch","Watch for new photos"))+
+      row("libraryMode","Where photos live","The library only stores tags and thumbnails unless you choose to copy.",seg("libraryMode",[["inplace","Leave in place"],["copy","Copy to library"]]))+
+      (S.libraryMode==="copy"?row("libraryPath","Library folder","Copies are organized here. Originals are never changed.",pathIn("libraryPath","Library folder")):"")+
+      row("neverDelete","Never delete originals","Removing a photo only removes it from the library.",tgl("neverDelete","Never delete originals")))},
+ {id:"backup",label:"Backups",icon:"backup",keys:["backupOn","backupPath","backupWhen","backupKeep","backupVerify"],
+  lead:"A copy of every photo and your tags, kept somewhere else in case a drive fails.",
+  body:()=>group("Backup",
+      row("backupOn","Back up my photos","",tgl("backupOn","Back up my photos"))+
+      (S.backupOn?row("backupPath","Backup location","Use a different drive from your photos.",pathIn("backupPath","Backup location"))+
+      row("backupWhen","How often","",sel("backupWhen",[["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"],["manual","Only when I ask"]],"How often"))+
+      row("backupKeep","Backups to keep","Older backups are removed when a new one finishes.",numIn("backupKeep",1,52,"Backups to keep"))+
+      row("backupVerify","Check each backup","Opens every file in a new backup to make sure it's readable.",tgl("backupVerify","Check each backup")):""))},
+ {id:"ai",label:"AI tagging",icon:"sparkle",keys:["aiMode","taggers","maxAutoTags","confidence","claudeLimit"],
+  lead:"Automatic tagging uses Claude and needs your API key. Without one, you sort and tag photos yourself.",
+  body:()=>group("How photos get tagged",
+      row("aiMode","Tagging","",seg("aiMode",[["ai","AI tagging"],["manual","Manual only"]])))
+    +(S.aiMode==="manual"
+      ?'<div class="pgroup"><div class="ptagempty">Manual only: nothing is sent anywhere. New photos are added untagged, apart from the date and place stored in the file, and you tag them yourself.</div></div>'
+      :group("Claude API key",
+        `<div class="prow"><div><div class="pl">${S.apiKeySet?"Connected":"Not connected"}</div><div class="pd">${S.apiKeySet?"Key ending …4f2a, stored in Windows Credential Manager.":"Needed for AI tagging. The key is stored securely on this computer, never in a file."}</div></div><div class="pc">${S.apiKeySet?'<button class="btn" data-key="replace">Replace…</button><button class="btn" data-key="remove">Remove</button>':'<button class="btn primary" data-key="connect">Connect…</button>'}</div><span></span></div>`+
+        row("claudeLimit","Monthly spending limit (USD)","When it's reached, tagging pauses until next month or until you raise it.",numIn("claudeLimit",1,500,"Monthly limit")))
+      +group("What to tag",TAGGERS.map(([n,d],i)=>row(`taggers.${i}`,n,d,tgl(`taggers.${i}`,n))).join(""),
+        changed("taggers")?`<button class="link-reset" data-reset="taggers">Reset</button>`:"")
+      +group("How much",
+        row("maxAutoTags","Most tags the AI adds per photo","You can always add more yourself.",numIn("maxAutoTags",1,10,"Most tags per photo"))+
+        row("confidence","How sure it has to be","More cautious means fewer suggestions to review.",seg("confidence",[["cautious","Cautious"],["balanced","Balanced"],["eager","More suggestions"]]))))},
+ {id:"categories",label:"Categories",icon:"things",keys:["showYear","defaultTagSort"],special:"cats",
+  lead:"Rename, recolor, reorder or remove categories. New categories get their icon automatically.",
+  body:()=>{
+    const list=state.order.filter(g=>GROUPS[g]).map((g,i,arr)=>`<div class="crow" style="--c:${COLORS[g]}"><span class="cicon">${catIcon(g)}</span>`+
+      `<input type="text" data-catname="${g}" value="${escA(GROUPS[g])}" aria-label="Category name">`+
+      `<div class="swatches">${PALETTE.map(c=>`<button class="sw${COLORS[g]===c?" on":""}" data-pcolor="${g}|${c}" style="--sw:${c}" aria-label="Use this color" aria-pressed="${COLORS[g]===c}"></button>`).join("")}</div>`+
+      `<div class="acts"><button class="hbtn" data-cmove="${g}|-1" ${i===0?"disabled":""} title="Move up" aria-label="Move up">${UP_SVG}</button><button class="hbtn" data-cmove="${g}|1" ${i===arr.length-1?"disabled":""} title="Move down" aria-label="Move down">${DOWN_SVG}</button><button class="hbtn" data-cdel="${g}" title="Delete category" aria-label="Delete ${escA(GROUPS[g])}">${TRASH_SVG}</button></div>`+
+      (state.prefsDel===g?`<div class="confirm"><p>Delete <strong>${escA(GROUPS[g])}</strong>? Its tags are removed from your photos. The photos themselves are not touched.</p><div><button class="btn danger" data-cdelyes="${g}">Delete</button><button class="btn" data-cdelno>Cancel</button></div></div>`:"")+`</div>`).join("");
+    const adding=state.prefsAdding?`<form class="newtag" id="prefsAddCat" style="margin:8px 16px"><input id="prefsNewCat" placeholder="Category name" autocomplete="off" aria-label="New category name"><button class="btn primary">Add</button><button type="button" class="hbtn cancel" data-paddno title="Cancel" aria-label="Cancel">×</button></form>`:"";
+    return group("Your categories",adding+list,`<span style="display:flex;gap:2px">${catLayoutChanged()?`<button class="hbtn preset" data-catreset title="Reset built-in names, colors, icons and order" aria-label="Reset category layout">${RESET_SVG}</button>`:""}<button class="hbtn" data-padd title="Add a category" aria-label="Add a category" aria-expanded="${!!state.prefsAdding}">+</button></span>`)
+      +group("Display",
+        row("showYear","Show the Year category","Year is filled in automatically from photo dates.",tgl("showYear","Show Year"))+
+        row("defaultTagSort","Default tag order","Each category can still change its own order from its header.",seg("defaultTagSort",[["az","A–Z"],["za","Z–A"],["count","Most photos"]])));
+  }},
+ {id:"tags",label:"Tags",icon:"tag",keys:["learnNames","suggestTags"],special:"tags",
+  lead:"Every tag in your library. Rename, move to another category, favorite or delete.",
+  body:()=>{
+    const all=[];const seen=new Set();
+    for(const g of state.order.filter(g=>GROUPS[g])){const c={};photos.forEach(p=>(p.tags[g]||[]).forEach(t=>c[t]=(c[t]||0)+1));(state.extra[g]||[]).forEach(t=>c[t]??=0);
+      Object.keys(c).sort((a,b)=>a.localeCompare(b)).forEach(t=>{const k=g+"|"+t;if(!seen.has(k)){seen.add(k);all.push({g,t,n:c[t]});}});}
+    const q=(state.tagQ||"").toLowerCase(),fc=state.tagCat||"";
+    const shown=all.filter(x=>(!fc||x.g===fc)&&(!q||x.t.toLowerCase().includes(q)));
+    const opts=g=>state.order.filter(x=>GROUPS[x]).map(x=>`<option value="${x}" ${x===g?"selected":""}>${escA(GROUPS[x])}</option>`).join("");
+    const rows=shown.map(x=>{const fav=state.favTags.has(x.g+"|"+x.t);return `<div class="trow2"><input type="text" data-trename="${escA(x.g+"|"+x.t)}" value="${escA(x.t)}" aria-label="Tag name"><select data-tmove="${escA(x.g+"|"+x.t)}" aria-label="Category">${opts(x.g)}</select><em>${x.n}</em><button class="hbtn${fav?" fav":""}" data-tfav="${escA(x.g+"|"+x.t)}" aria-pressed="${fav}" title="${fav?"Unfavorite":"Favorite"}" aria-label="Favorite ${escA(x.t)}">${fav?"★":"☆"}</button><button class="hbtn" data-tdel="${escA(x.g+"|"+x.t)}" title="Delete tag from all photos" aria-label="Delete ${escA(x.t)}">${TRASH_SVG}</button></div>`;}).join("");
+    const learned=(()=>{try{return (JSON.parse(localStorage.getItem(LEARN_KEY))||[]).length;}catch(e){return 0;}})();
+    return group(`All tags (${all.length})`,`<div class="tagtools"><input id="tagQ" type="text" placeholder="Search tags" value="${escA(state.tagQ||"")}" aria-label="Search tags"><select id="tagCat" aria-label="Filter by category"><option value="">All categories</option>${opts(fc)}</select></div>`+(rows||'<div class="ptagempty">No tags match.</div>'))
+      +group("Suggestions",
+        row("suggestTags","Suggest tags while typing","Uses the built-in list of common names, places and things.",tgl("suggestTags","Suggest tags"))+
+        row("learnNames","Remember new names","Tags and categories you type that aren't in the list are added to it.",tgl("learnNames","Remember new names")))
+      +group("Clear",
+        `<div class="prow"><div><div class="pl">Tag favorites</div><div class="pd">${state.favTags.size} starred. Default is none.</div></div><div class="pc"></div>${state.favTags.size?`<button class="hbtn preset" data-clearfav title="Reset to default: none starred" aria-label="Clear tag favorites">${RESET_SVG}</button>`:"<span></span>"}</div>`+
+        `<div class="prow"><div><div class="pl">Learned category names</div><div class="pd">${learned} remembered on this device. Default is none.</div></div><div class="pc"></div>${learned?`<button class="hbtn preset" data-clearlearned title="Reset to default: forget them" aria-label="Forget learned names">${RESET_SVG}</button>`:"<span></span>"}</div>`);
+  }},
+ {id:"appearance",label:"Appearance",icon:"art",keys:["theme","thumb","showHowItWorks"],special:"rail",
+  lead:"How the library looks.",
+  body:()=>group("Look",
+      row("theme","Theme","",seg("theme",[["system","Match system"],["light","Light"],["dark","Dark"]]))+
+      row("thumb","Photo size in the grid","",seg("thumb",[["small","Small"],["medium","Medium"],["large","Large"]]))+
+      row("showHowItWorks","Show “How it works”","The three-step strip at the top of the library.",tgl("showHowItWorks","Show How it works"))+
+      `<div class="prow"><div><div class="pl">Category column width</div><div class="pd">${state.railMini?"Showing icons only":state.railW+" px"}. Drag the divider in the library to change it.</div></div><div class="pc"></div>${(state.railMini||state.railW!==RW_DEFAULT)?`<button class="hbtn preset" data-railreset title="Reset to default: ${RW_DEFAULT} px" aria-label="Reset column width">${RESET_SVG}</button>`:"<span></span>"}</div>`)},
+ {id:"data",label:"Data & privacy",icon:"document",keys:["catalogPath","historyDays"],
+  lead:"Where the library keeps its catalog of tags, and what it remembers.",
+  body:()=>group("Catalog",
+      row("catalogPath","Catalog location","Tags, categories and thumbnails. Your photos stay where they are.",pathIn("catalogPath","Catalog location"))+
+      row("historyDays","Keep undo history for","",sel("historyDays",[["30","30 days"],["90","90 days"],["365","1 year"],["forever","Forever"]],"Undo history"))+
+      `<div class="prow"><div><div class="pl">Export catalog</div><div class="pd">Saves your tags and categories to a file you can keep or move to another computer.</div></div><div class="pc"><button class="btn" data-export>Export…</button></div><span></span></div>`)},
+];
+const catDefOrder=()=>["people","places","events","things",...state.order.filter(g=>!["people","places","events","things","year"].includes(g)).sort((a,b)=>label(a).localeCompare(label(b))),"year"];
+function catLayoutChanged(){
+  return !same(state.order,catDefOrder().filter(g=>state.order.includes(g)))||Object.keys(DEF_NAMES).some(g=>GROUPS[g]&&GROUPS[g]!==DEF_NAMES[g])
+    ||Object.keys(DEF_COLORS).some(g=>GROUPS[g]&&COLORS[g]!==DEF_COLORS[g])||["people","places","events","things"].some(g=>!GROUPS[g]||state.icons[g]);
+}
+function resetCatLayout(){
+  for(const g of Object.keys(DEF_NAMES)){if(!GROUPS[g]){photos.forEach(p=>p.tags[g]=[]);}GROUPS[g]=DEF_NAMES[g];COLORS[g]=DEF_COLORS[g];delete state.icons[g];}
+  state.order=catDefOrder();state.tagSort={year:"za"};state.collapsed=new Set(["year"]);
+  save(ORDER_KEY,state.order);save(SORT_KEY,state.tagSort);try{localStorage.setItem("collapsed",JSON.stringify(["year"]));}catch(e){}
+}
+const secChanged=sec=>sec.keys.some(changed)||(sec.special==="cats"&&catLayoutChanged())||(sec.special==="rail"&&(state.railMini||state.railW!==RW_DEFAULT));
+function resetSection(sec){
+  sec.keys.forEach(k=>setP(S,k,clone(getP(DEFAULTS,k))));
+  if(sec.special==="cats")resetCatLayout();
+  if(sec.special==="rail"){applyRW(RW_DEFAULT);saveRW();}
+  saveS();
+}
+
+function renderPrefs(){
+  const cur=SECTIONS.find(s=>s.id===state.prefsSec)||SECTIONS[0];
+  $("prefsNav").innerHTML=SECTIONS.map(s=>`<button data-sec="${s.id}" class="${s.id===cur.id?"on":""}" aria-current="${s.id===cur.id?"page":"false"}">${navIcon(s.icon)}${s.label}${secChanged(s)?'<span class="dot" title="Changed from default"></span>':""}</button>`).join("");
+  const sc=$("prefsMain").scrollTop;
+  $("prefsMain").innerHTML=`<section class="psec"><div class="psec-head"><h2>${cur.label}</h2>${secChanged(cur)?`<button class="link-reset" data-resetsec="${cur.id}">Reset section</button>`:""}</div><p class="lead">${cur.lead}</p>${cur.body()}</section>`;
+  $("prefsMain").scrollTop=sc;
+  if(state.prefsFocus){const el=$(state.prefsFocus);state.prefsFocus=null;if(el){el.focus();if(el.setSelectionRange)el.setSelectionRange(el.value.length,el.value.length);}}
+}
+function openPrefs(sec){
+  closeInline();closeP();closeImp?.();state.prefsSec=sec||state.prefsSec||"folders";state.prefsDel=null;state.prefsAdding=false;
+  document.body.classList.add("in-prefs");$("prefs").hidden=false;$("resetAllBox").hidden=true;renderPrefs();$("closePrefs").focus();
+}
+function closePrefs(){document.body.classList.remove("in-prefs");$("prefs").hidden=true;render();$("openPrefs").focus();}
+
+// ---- Events ----
+$("openPrefs").addEventListener("click",()=>openPrefs());
+$("closePrefs").addEventListener("click",closePrefs);
+document.addEventListener("click",e=>{const b=e.target.closest("[data-prefs]");if(b){openPrefs(b.dataset.prefs);}});
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape"||$("prefs").hidden)return;
+  e.stopImmediatePropagation();
+  if(!$("resetAllBox").hidden){$("resetAllBox").hidden=true;return;}
+  if(state.prefsDel||state.prefsAdding){state.prefsDel=null;state.prefsAdding=false;return renderPrefs();}
+  if(e.target.closest("input,select")&&e.target.id!=="tagQ"){e.target.blur();return;}
+  closePrefs();
+},true);
+$("resetAll").addEventListener("click",()=>{$("resetAllBox").hidden=false;$("resetAllYes").focus();});
+$("resetAllNo").addEventListener("click",()=>{$("resetAllBox").hidden=true;});
+$("resetAllYes").addEventListener("click",()=>{
+  S=clone(DEFAULTS);resetCatLayout();applyRW(RW_DEFAULT);saveRW();saveS();$("resetAllBox").hidden=true;renderPrefs();toast("All settings are back to their defaults");
+});
+function setFromInput(el){
+  const k=el.dataset.set;let v;
+  if(el.type==="checkbox")v=el.checked;
+  else if(el.type==="number"){v=Math.round(+el.value);const mn=+el.min,mx=+el.max;if(!Number.isFinite(v))v=getP(DEFAULTS,k);v=Math.max(mn,Math.min(mx,v));}
+  else v=el.value.trim()||getP(DEFAULTS,k)||el.value;
+  setP(S,k,v);saveS();renderPrefs();
+}
+$("prefs").addEventListener("change",e=>{
+  const el=e.target;
+  if(el.dataset.set!=null)return setFromInput(el);
+  if(el.dataset.catname){const v=el.value.replace(/[<>"&`]/g,"").trim();const g=el.dataset.catname;if(v&&v!==GROUPS[g]){GROUPS[g]=v;const ic=iconFor(v);if(ic!=="tag")state.icons[g]=ic;if(S.learnNames)learnCat(v,state.icons[g]||ic);}render();return renderPrefs();}
+  if(el.dataset.tmove){const[g,t]=el.dataset.tmove.split("|");moveTag(g,t,el.value);return renderPrefs();}
+  if(el.dataset.trename){const[g,t]=el.dataset.trename.split("|");const v=el.value.replace(/[<>"&`]/g,"").trim();if(v&&v!==t)renameTag(g,t,v);return renderPrefs();}
+  if(el.id==="tagCat"){state.tagCat=el.value;return renderPrefs();}
+});
+$("prefs").addEventListener("input",e=>{if(e.target.id==="tagQ"){state.tagQ=e.target.value;state.prefsFocus="tagQ";renderPrefs();}});
+$("prefs").addEventListener("submit",e=>{
+  e.preventDefault();
+  if(e.target.id==="prefsAddCat"){const v=$("prefsNewCat").value.replace(/[<>"&`]/g,"").trim();state.prefsAdding=false;if(v){addCategory(v);state.adding=null;state.focusNew=false;toast(`Added “${v}”`);}render();renderPrefs();}
+});
+$("prefs").addEventListener("click",e=>{
+  const t=e.target,c=s=>t.closest(s);let b;
+  if(b=c("[data-sec]")){state.prefsSec=b.dataset.sec;state.prefsDel=null;state.prefsAdding=false;$("prefsMain").scrollTop=0;return renderPrefs();}
+  if(b=c("[data-reset]")){const k=b.dataset.reset;setP(S,k,clone(getP(DEFAULTS,k)));saveS();return renderPrefs();}
+  if(b=c("[data-resetsec]")){resetSection(SECTIONS.find(s=>s.id===b.dataset.resetsec));toast("Section reset to defaults");return renderPrefs();}
+  if(b=c("[data-seg]")){const[k,v]=b.dataset.seg.split("|");setP(S,k,v);saveS();return renderPrefs();}
+  if(b=c("[data-browse]"))return toast("Would open a folder picker");
+  if(b=c("[data-key]")){const a=b.dataset.key;if(a==="remove"){S.apiKeySet=false;toast("API key removed. Tagging is paused until you add one or switch to Manual only");}else{S.apiKeySet=true;toast("Would open a secure box to paste and test your key");}saveS();return renderPrefs();}
+  if(c("[data-export]"))return toast("Would save the catalog to a file you choose");
+  if(c("[data-src-add]")){S.sources.push({path:"",sub:true});state.prefsFocus=null;saveS();renderPrefs();const ins=$("prefsMain").querySelectorAll(".src input[type=text]");ins[ins.length-1]?.focus();return;}
+  if(b=c("[data-src-del]")){S.sources.splice(+b.dataset.srcDel,1);saveS();return renderPrefs();}
+  if(b=c("[data-pcolor]")){const[g,col]=b.dataset.pcolor.split("|");COLORS[g]=col;render();return renderPrefs();}
+  if(b=c("[data-cmove]")){const[g,d]=b.dataset.cmove.split("|");const vis=state.order.filter(x=>GROUPS[x]),i=vis.indexOf(g),j=i+ +d;if(j<0||j>=vis.length)return;
+    const a=state.order.indexOf(g),bb=state.order.indexOf(vis[j]);[state.order[a],state.order[bb]]=[state.order[bb],state.order[a]];save(ORDER_KEY,state.order);render();renderPrefs();
+    $("prefsMain").querySelector(`[data-cmove="${g}|${d}"]`)?.focus();return;}
+  if(b=c("[data-cdel]")){state.prefsDel=b.dataset.cdel;return renderPrefs();}
+  if(c("[data-cdelno]")){state.prefsDel=null;return renderPrefs();}
+  if(b=c("[data-cdelyes]")){deleteCategory(b.dataset.cdelyes);state.prefsDel=null;render();return renderPrefs();}
+  if(c("[data-padd]")){state.prefsAdding=!state.prefsAdding;state.prefsFocus=state.prefsAdding?"prefsNewCat":null;return renderPrefs();}
+  if(c("[data-paddno]")){state.prefsAdding=false;return renderPrefs();}
+  if(c("[data-catreset]")){resetCatLayout();render();toast("Category names, colors and order reset");return renderPrefs();}
+  if(c("[data-railreset]")){applyRW(RW_DEFAULT);saveRW();return renderPrefs();}
+  if(b=c("[data-tfav]")){const k=b.dataset.tfav;state.favTags.has(k)?state.favTags.delete(k):state.favTags.add(k);save("favTags",[...state.favTags]);render();return renderPrefs();}
+  if(b=c("[data-tdel]")){const[g,tg]=b.dataset.tdel.split("|");deleteTag(g,tg);toast(`Deleted tag “${tg}”`);return renderPrefs();}
+  if(c("[data-clearfav]")){state.favTags.clear();save("favTags",[]);render();return renderPrefs();}
+  if(c("[data-clearlearned]")){forgetLearned();toast("Forgot learned names");return renderPrefs();}
+});
+
+// ---- Tag and learned-name helpers ----
+function moveTag(g,t,ng){if(g===ng)return;
+  photos.forEach(p=>{if(p.tags[g]?.includes(t)){p.tags[g]=p.tags[g].filter(x=>x!==t);(p.tags[ng]??=[]);if(!p.tags[ng].includes(t))p.tags[ng].push(t);}});
+  if(state.extra[g]?.delete(t))(state.extra[ng]??=new Set).add(t);
+  state.filters.forEach(f=>{if(f.g===g&&f.t===t)f.g=ng;});
+  if(state.favTags.delete(g+"|"+t)){state.favTags.add(ng+"|"+t);save("favTags",[...state.favTags]);}
+  render();toast(`Moved “${t}” to ${GROUPS[ng]}`);}
+function renameTag(g,t,nt){
+  photos.forEach(p=>{const a=p.tags[g];if(a?.includes(t))p.tags[g]=[...new Set(a.map(x=>x===t?nt:x))];});
+  if(state.extra[g]?.delete(t))state.extra[g].add(nt);
+  state.filters.forEach(f=>{if(f.g===g&&f.t===t)f.t=nt;});
+  if(state.favTags.delete(g+"|"+t)){state.favTags.add(g+"|"+nt);save("favTags",[...state.favTags]);}
+  render();toast(`Renamed to “${nt}”`);}
+function deleteTag(g,t){
+  photos.forEach(p=>{if(p.tags[g])p.tags[g]=p.tags[g].filter(x=>x!==t);});
+  state.extra[g]?.delete(t);state.filters=state.filters.filter(f=>!(f.g===g&&f.t===t));
+  if(state.favTags.delete(g+"|"+t))save("favTags",[...state.favTags]);render();}
+function forgetLearned(){
+  let a=[];try{a=JSON.parse(localStorage.getItem(LEARN_KEY))||[];}catch(e){}
+  const names=new Set(a.map(([n])=>norm(n)));
+  for(let i=LIB.length-1;i>=0;i--)if(names.has(LIB_L[i])&&i<a.length){LIB.splice(i,1);LIB_L.splice(i,1);LIB_RAW.splice(i,1);LIB_W.splice(i,1);}
+  save(LEARN_KEY,[]);
+}
+// Respect "Remember new names": learnCat only stores when it's on.
+const _learnCat=learnCat;learnCat=function(n,i,persist=true){if(persist&&!S.learnNames)return;_learnCat(n,i,persist);};
+// The Add folder dialog starts from the AI tagging settings.
+$("addBtn").addEventListener("click",()=>S.taggers.forEach((on,i)=>{const cb=$("t"+i);if(cb)cb.checked=on;}));
+
+applyS();render();
 </script>
