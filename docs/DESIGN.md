@@ -87,3 +87,12 @@ High-confidence tags are applied. Medium-confidence tags show as *Suggested*. Lo
 - Platform: Windows desktop app (like before), or a local app used in the browser.
 - Should "Add folder" also offer to copy photos into one library folder, or always leave them in place?
 - Which AI taggers are on by default (the mockup turns on everything except OCR and old scans).
+
+## Backlog
+
+Agreed ideas that are deliberately **not built yet**. Pick these up when reviewing the backend processes.
+
+### Tag library and AI tag limit
+- **Tag library:** apply the same approach as the category library to tags. A large hidden list of popular tags (common first names, places and landmarks, objects, activities, events, holidays…), each linked to the category it belongs in. It powers suggestions while typing a tag (same matching rules: most common first, ignores apostrophes, multi-word word-starts) and helps file a new tag into the right category automatically.
+- **AI applies at most 5 tags per photo** when it processes images. The user can add as many more as they like by hand. This keeps auto-tagging focused and easy to review.
+- Open questions for then: how the 5 are chosen (highest confidence, or one per category first?); whether tags under that limit still show as *Suggested*; whether people's names come from the user's own contacts/naming rather than a generic list; and where the list is stored and updated (shipped file vs. downloaded).
