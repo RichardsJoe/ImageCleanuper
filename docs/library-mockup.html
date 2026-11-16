@@ -57,7 +57,12 @@ select.btn{padding-right:8px}
 @media (max-width:760px){.main{grid-template-columns:minmax(0,1fr)} .rail{display:none} .rail.open{display:block}}
 .rail h3{font-family:var(--display);font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;display:flex;align-items:center;gap:8px}
 .rail h3:first-child{margin-top:0}
-.rail h3 i{width:8px;height:8px;border-radius:2px;background:var(--c)}
+.rail h3 i{width:8px;height:8px;border-radius:2px;background:var(--c);flex:none}
+.ghead{display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;padding:4px 8px 4px 2px;border-radius:6px;font:inherit;letter-spacing:inherit;text-transform:inherit;text-align:left}
+.ghead:hover{background:var(--sunk)}
+.ghead em{margin-left:auto;font-family:var(--body);font-style:normal;font-weight:500;text-transform:none;letter-spacing:0;font-size:12px;color:var(--muted)}
+.caret{flex:none;color:var(--muted);transition:transform .15s}
+.ghead[aria-expanded="false"] .caret{transform:rotate(-90deg)}
 .facet{display:flex;flex-direction:column;gap:2px}
 .facet button{display:flex;justify-content:space-between;gap:8px;border:0;background:transparent;text-align:left;padding:5px 8px;border-radius:6px}
 .facet button:hover{background:var(--sunk)}
@@ -251,7 +256,8 @@ const photos=[
 ];
 photos.forEach((p,i)=>{p.id=i;p.added=p.added||0;p.order=i;});
 
-const state={q:"",filters:[],sort:"new",sel:new Set(),open:null};
+const state={q:"",filters:[],sort:"new",sel:new Set(),open:null,collapsed:new Set(["year"])};
+try{const c=JSON.parse(localStorage.getItem("collapsed"));if(Array.isArray(c))state.collapsed=new Set(c);}catch(e){}
 const $=id=>document.getElementById(id);
 const year=p=>p.date.slice(0,4);
 const allTags=p=>[...Object.entries(p.tags).flatMap(([g,ts])=>ts.map(t=>[g,t])),["year",year(p)]];
@@ -284,7 +290,8 @@ function renderRail(list){
   $("rail").innerHTML=groups.map(g=>{
     const entries=Object.keys(total[g]||{}).sort((a,b)=>g==="year"?b.localeCompare(a):(total[g][b]-total[g][a])||a.localeCompare(b));
     if(!entries.length) return "";
-    return `<h3 style="--c:${COLORS[g]}"><i></i>${GROUPS[g]||"Year"}</h3><div class="facet">`+
+    const shut=state.collapsed.has(g),nOn=state.filters.filter(f=>f.g===g).length;
+    return `<h3 style="--c:${COLORS[g]}"><button class="ghead" data-toggle="${g}" aria-expanded="${!shut}"><svg class="caret" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 4.5 3 3 3-3"/></svg><i></i>${GROUPS[g]||"Year"}<em>${nOn?nOn+" selected":shut?entries.length:""}</em></button></h3><div class="facet"${shut?" hidden":""}>`+
       entries.map(t=>{const on=state.filters.some(f=>f.g===g&&f.t===t);const n=counts[g]?.[t]||0;
         return `<button class="${on?"on":""}${!n&&!on?" zero":""}" data-g="${g}" data-t="${t}" aria-pressed="${on}"${!n&&!on?' disabled title="No photos match with the current filters"':""}><span>${t}</span><em>${n}</em></button>`;}).join("")+`</div>`;
   }).join("");
@@ -364,7 +371,11 @@ $("impStart").addEventListener("click",()=>{
   (function step(){lis.forEach((li,j)=>{li.className=j<i?"done":j===i?"run":"";li.querySelector("em").textContent=j<i?STAGES[j][1]:"";});
     if(i<lis.length){i++;setTimeout(step,600);}else $("impDone").hidden=false;})();
 });
-$("rail").addEventListener("click",e=>{const b=e.target.closest("button[data-g]");if(!b)return;
+$("rail").addEventListener("click",e=>{
+  const h=e.target.closest("[data-toggle]");
+  if(h){const g=h.dataset.toggle;state.collapsed.has(g)?state.collapsed.delete(g):state.collapsed.add(g);
+    try{localStorage.setItem("collapsed",JSON.stringify([...state.collapsed]));}catch(e){}return render();}
+  const b=e.target.closest("button[data-g]");if(!b)return;
   const i=state.filters.findIndex(f=>f.g===b.dataset.g&&f.t===b.dataset.t);
   i>=0?state.filters.splice(i,1):state.filters.push({g:b.dataset.g,t:b.dataset.t});render();});
 $("bar").addEventListener("click",e=>{
