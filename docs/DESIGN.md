@@ -27,6 +27,7 @@ Rules agreed while reviewing the mockup. New screens follow these.
 - The header and search bar stay fixed. The category column and the photo grid each scroll on their own; scrolling one never moves the other.
 - Each category's tag list has its own scrollbar after about 7 tags, and the scroll position is kept when the list redraws.
 - The category column is resizable with a drag handle between it and the grid (200–520 px, double-click to reset). Widths, order, sort, collapsed state and favorites are remembered.
+- **Scrollbars never cover content.** Every scrolling area reserves its own lane for the scrollbar plus a small gap, so photos, counts and stars are never under it (this matters on Windows 11, where scrollbars float over content by default). Scrollbars are thin and themed.
 - Headers in a column line up: name on the left, small controls (sort, `+`) on the right, in the same positions on every row.
 
 ### Search
