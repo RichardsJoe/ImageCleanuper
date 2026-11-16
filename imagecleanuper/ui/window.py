@@ -1224,7 +1224,7 @@ class App(ctk.CTk):
     # ---- report (wireframe 12) ----------------------------------------------------
     REPORT_PAGE = 8
 
-    def show_report(self, folder: str | None = None, page: int = 0):
+    def show_report(self, folder: str | None = None, page: int = 0, selected: str | None = None):
         from .. import plan as plan_mod
         derived = str(self.paths.data / "derived")
         if not self.paths.catalog.exists():
@@ -1236,6 +1236,7 @@ class App(ctk.CTk):
             finally:
                 cat.close()
         info_review = pv.totals.get("need_review", 0)
+        info_last = summary(self.paths).get("last_run")
         b = self._screen("Here's the plan", nav="report")
         chips = ctk.CTkFrame(b, fg_color="transparent")
         chips.pack(fill="x", pady=(0, 8))
@@ -1279,16 +1280,33 @@ class App(ctk.CTk):
             page = max(0, min(page, pages - 1))
             ctk.CTkLabel(right, text=f"{folder.replace('/', ' › ')}   ({plural(len(entries), 'photo')})",
                          font=ctk.CTkFont(size=14, weight="bold"), anchor="w").pack(fill="x")
+            ctk.CTkLabel(right, text="Spot a wrong one? Select it and press M to move it or Del to remove it "
+                         "from this folder.  O shows where the original is.", text_color=MUTED, anchor="w"
+                         ).pack(fill="x")
             grid = ctk.CTkFrame(right, fg_color="transparent")
             grid.pack(fill="x", pady=6)
             self._images = []
             cw, ch = self._avail()
             tw = int(max(100, min(220, (cw - 230 - 60) / 4 - 10)))
             th = int(tw * 0.8)
-            for i, e in enumerate(entries[page * self.REPORT_PAGE:(page + 1) * self.REPORT_PAGE]):
+            shown = entries[page * self.REPORT_PAGE:(page + 1) * self.REPORT_PAGE]
+            if selected not in {e.key for e in shown}:
+                selected = None
+            for i, e in enumerate(shown):
                 name = e.name if len(e.name) <= 14 else e.name[:13] + "…"
-                cell = self._image_box(grid, e.image, (tw, th), name + ("\ndate is a guess" if e.is_guess else ""))
-                cell.grid(row=i // 4, column=i % 4, padx=4, pady=4, sticky="n")
+                on = e.key == selected
+                frame = ctk.CTkFrame(grid, border_width=3 if on else 0, border_color=BLUE,
+                                     fg_color=("#eef4ff", "#1e2a3a") if on else "transparent")
+                frame.grid(row=i // 4, column=i % 4, padx=4, pady=4, sticky="n")
+                cell = self._image_box(frame, e.image, (tw, th), name + ("\ndate is a guess" if e.is_guess else ""))
+                cell.pack(padx=3, pady=3)
+                for w in [frame, cell, *cell.winfo_children()]:
+                    w.bind("<Button-1>", lambda ev, k=e.key: self.show_report(folder, page, k))
+            sel_entry = next((e for e in shown if e.key == selected), None)
+            self.bind("m", self._not_typing(lambda: sel_entry and self._report_move(folder, page, sel_entry)))
+            self.bind("<Delete>", self._not_typing(lambda: sel_entry and self._report_remove(folder, page, sel_entry)))
+            self.bind("o", self._not_typing(lambda: sel_entry and self._report_original(sel_entry)))
+            self.bind("<Control-z>", lambda ev: self._report_undo(folder, page))
             for c in range(4):
                 grid.grid_columnconfigure(c, minsize=tw + 8, uniform="thumbs")
             if pages > 1:
@@ -1311,6 +1329,20 @@ class App(ctk.CTk):
             if pv.totals.get("could_not_open"):
                 rows.append((f"{plural(pv.totals['could_not_open'], 'file')} couldn't be opened", "See why ›",
                              lambda: self.show_report("_Could Not Open")))
+            import json as _json
+            run_counts = (info_last or {}).get("counts") or {}
+            if isinstance(run_counts, str):
+                try:
+                    run_counts = _json.loads(run_counts)
+                except ValueError:
+                    run_counts = {}
+            hand = run_counts.get("library") or {}
+            if hand.get("moved") or hand.get("removed"):
+                rows.append((f"You moved {hand.get('moved', 0):,} and removed {hand.get('removed', 0):,} library "
+                             "photos by hand; those count as your answers", "", None))
+            if hand.get("edited") or hand.get("unknown"):
+                rows.append((f"{plural(hand.get('edited', 0) + hand.get('unknown', 0), 'library file')} you edited or "
+                             "added yourself are left alone", "", None))
             if not rows:
                 rows.append(("Nothing needs attention.", "", None))
             for text, link, cmd in rows:
@@ -1330,6 +1362,158 @@ class App(ctk.CTk):
         if can_sort:
             self.bind("<Return>", lambda e: self.start_sort())
         self._hotkey_line("Enter Approve and sort · Esc Back to Home")
+
+    # ---- report corrections ------------------------------------------------------------------
+    def _report_fix(self, folder, page, entry, action):
+        from .. import corrections, dates as dates_mod
+        cat = Catalog(self.paths.catalog)
+        try:
+            a = corrections.asset_of(cat, entry.key)
+            if a is None:
+                self._notice("Can't change this one", "Whole scans and files that couldn't be opened stay where "
+                             "they are. Mark a cut-out as wrong in Review instead.")
+                return
+            tokens = action(cat, *a)
+            if tokens:
+                dates_mod.resolve_all(cat, self.settings)
+                self._report_undo_stack = getattr(self, "_report_undo_stack", []) + [tokens]
+        finally:
+            cat.close()
+        self.show_report(folder, page)
+
+    def _report_remove(self, folder, page, entry):
+        from .. import corrections
+        if folder == "_Duplicates":
+            return self.show_dups(0)
+        self._report_fix(folder, page, entry, lambda cat, aid, ck, year:
+                         corrections.remove_from(cat, self.settings, aid, ck, folder))
+
+    def _report_move(self, folder, page, entry):
+        from .. import corrections, plan as plan_mod, people as people_mod
+        cat = Catalog(self.paths.catalog)
+        try:
+            pv = plan_mod.preview(cat, str(self.paths.data / "derived"), self.settings.categories)
+            known = people_mod.names(cat)
+        finally:
+            cat.close()
+        year = folder.split("/")[1] if folder.startswith("Old Family Photos/") else folder.split("/")[0]
+        root = "Old Family Photos/" if folder.startswith("Old Family Photos/") else ""
+        options = {k for k in pv.folders if not k.startswith("_") and k != folder and "Original Scans" not in k}
+        if year[:4].isdigit() or year.startswith("Unknown"):
+            options |= {f"{root}{year}/People/{n}" for n in known}
+            options |= {f"{root}{year}/{lab}" for lab, *_ in self.settings.categories.values()}
+            options |= {f"{root}{year}/Pets", "_Junk"}
+        options.discard(folder)
+        win = ctk.CTkToplevel(self)
+        win.title("Move to…")
+        win.geometry("520x520")
+        win.transient(self)
+        ctk.CTkLabel(win, text=f"Move {entry.name} to…", font=ctk.CTkFont(size=16, weight="bold"), anchor="w"
+                     ).pack(fill="x", padx=20, pady=(16, 4))
+        ctk.CTkLabel(win, text="Type to filter, or type a new person's name or a year.", text_color=MUTED,
+                     anchor="w").pack(fill="x", padx=20)
+        q = ctk.CTkEntry(win, placeholder_text="e.g. Mom, Christmas, 2004")
+        q.pack(fill="x", padx=20, pady=8)
+        lst = ctk.CTkScrollableFrame(win, height=330)
+        lst.pack(fill="both", expand=True, padx=20, pady=(0, 16))
+
+        def go(dest):
+            win.destroy()
+            self._report_fix(folder, page, entry, lambda cat, aid, ck, yr:
+                             corrections.move(cat, self.settings, aid, ck, folder, dest, yr))
+
+        def refresh(_=None):
+            for w in lst.winfo_children():
+                w.destroy()
+            text = q.get().strip()
+            shown = sorted(o for o in options if text.lower() in o.lower())
+            if text and text.isdigit() and len(text) == 4:
+                rest = folder.split("/", 2 if root else 1)[-1] if "/" in folder else "Other"
+                shown.insert(0, f"{root}{text}/{rest}")
+            elif text and not shown:
+                shown = [f"{root}{year}/People/{people_mod.proper_case(text)}"]
+            for o in shown[:200]:
+                ctk.CTkButton(lst, text=o.replace("/", " › "), anchor="w", fg_color="transparent",
+                              text_color=("gray10", "gray90"), hover_color=("gray88", "gray25"),
+                              command=lambda d=o: go(d)).pack(fill="x")
+            win.bind("<Return>", lambda e: shown and go(shown[0]))
+        q.bind("<KeyRelease>", refresh)
+        win.bind("<Escape>", lambda e: win.destroy())
+        refresh()
+        self._centre(win)
+        win.after(50, lambda: (win.grab_set(), q.focus_set()))
+
+    def _report_undo(self, folder, page):
+        from .. import corrections, dates as dates_mod
+        stack = getattr(self, "_report_undo_stack", [])
+        if not stack:
+            return
+        cat = Catalog(self.paths.catalog)
+        try:
+            corrections.undo(cat, stack.pop())
+            dates_mod.resolve_all(cat, self.settings)
+        finally:
+            cat.close()
+        self.show_report(folder, page)
+
+    def _report_original(self, entry):
+        from .. import restore as restore_mod
+        if not entry.key[1:].isdigit():
+            return
+        cat = Catalog(self.paths.catalog)
+        try:
+            fid = int(entry.key[1:]) if entry.key.startswith("f") else \
+                cat.scalar("SELECT file_id FROM assets WHERE id=?", (int(entry.key[1:]),))
+            info = restore_mod.original_by_file_id(cat, fid) if fid else None
+        finally:
+            cat.close()
+        self._show_original(info)
+
+    def _show_original(self, info):
+        if not info:
+            self._notice("Original not found", "This file isn't one the app knows about.")
+            return
+        where = info["orig_path"]
+        if info["finished"] and not info["exists"]:
+            state = "Moved into your library at Finish."
+        elif info["exists"]:
+            state = "Still in its original folder."
+        else:
+            state = "Not in its folder any more."
+        backup = f"Backed up in {info['backup_zip']}." if info["backup_zip"] else "Not backed up yet."
+        win = ctk.CTkToplevel(self)
+        win.title("Original")
+        win.transient(self)
+        ctk.CTkLabel(win, text="Where this photo came from", font=ctk.CTkFont(size=16, weight="bold"), anchor="w"
+                     ).pack(fill="x", padx=20, pady=(16, 4))
+        ctk.CTkLabel(win, text=f"{where}\n\n{state}\n{backup}", justify="left", anchor="w", wraplength=520
+                     ).pack(fill="x", padx=20)
+        bar = ctk.CTkFrame(win, fg_color="transparent")
+        bar.pack(fill="x", padx=20, pady=16)
+        if info["exists"]:
+            ctk.CTkButton(bar, text="Show in folder", width=140,
+                          command=lambda: self._reveal(where)).pack(side="left")
+        elif info["backup_zip"]:
+            ctk.CTkButton(bar, text="Restore it", width=140,
+                          command=lambda: (win.destroy(), self._restore_ids([info["file_id"]]))).pack(side="left")
+        ctk.CTkButton(bar, text="OK  (Enter)", width=120, command=win.destroy).pack(side="right")
+        win.bind("<Return>", lambda e: win.destroy())
+        win.bind("<Escape>", lambda e: win.destroy())
+        self._centre(win)
+        win.after(50, win.grab_set)
+
+    def _reveal(self, path):
+        import subprocess
+        import sys as _sys
+        try:
+            if _sys.platform == "win32":
+                subprocess.Popen(["explorer", "/select,", os.path.normpath(path)])
+            elif _sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", path])
+            else:
+                subprocess.Popen(["xdg-open", os.path.dirname(path)])
+        except OSError:
+            pass
 
     # ---- sorting (wireframe 06 layout, one bar) ------------------------------------------
     def start_sort(self):
@@ -1554,8 +1738,8 @@ class App(ctk.CTk):
                   self._restore_all, True),
                  ("Restore a photo or folder", "Search by name or original folder and restore just that.",
                   self.show_restore_search, True),
-                 ("Find an original", "Pick a photo in your library and see the untouched file it came from. "
-                                      "(Arrives with sorting in 0.4.)", None, False))
+                 ("Find an original", "Pick a photo in your library and see the untouched file it came from.",
+                  self._find_original, True))
         for title, text, cmd, enabled in cards:
             card = ctk.CTkFrame(b, border_width=1, border_color=("gray75", "gray35"), fg_color="transparent",
                                 cursor="hand2" if enabled else "")
@@ -1590,6 +1774,20 @@ class App(ctk.CTk):
                          wraplength=WRAP, justify="left").pack(fill="x", pady=(10, 0))
         self._footer(back=("Home", self.show_home))
         self._hotkey_line("Esc Home")
+
+    def _find_original(self):
+        from tkinter import filedialog
+        from .. import restore as restore_mod
+        path = filedialog.askopenfilename(title="Pick a photo in your library", initialdir=self.settings.library
+                                          or None)
+        if not path or not self.paths.catalog.exists():
+            return
+        cat = Catalog(self.paths.catalog)
+        try:
+            info = restore_mod.original_of(cat, self.settings.library, path)
+        finally:
+            cat.close()
+        self._show_original(info)
 
     def show_restore_search(self):
         b = self._screen("Restore a photo or folder", nav="restore",

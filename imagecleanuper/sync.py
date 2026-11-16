@@ -191,6 +191,7 @@ class SyncResult:
     edited_by_you: list[str] = field(default_factory=list)   # library files you changed: left alone
     in_the_way: list[str] = field(default_factory=list)      # someone else's file already at that name
     failed: list[str] = field(default_factory=list)
+    hand_edits: dict = field(default_factory=dict)            # what you changed in the library by hand
 
 
 def _free_space_check(library: str, d: Diff) -> None:

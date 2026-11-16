@@ -49,13 +49,43 @@ def test_sort_copies_plan_and_is_idempotent(env):
     assert owned["2017/Other/IMG_7.jpg"] < owned["2017/Other/IMG_7_2.jpg"]
 
 
-def test_missing_file_restored_and_pending_count(env):
+def test_photo_you_delete_from_library_stays_out(env):
     paths, s, cat = _setup(env)
     sort_library(paths, s)
     os.remove(os.path.join(s.library, "2019", "Holidays", "Christmas", "xmas.jpg"))
     d = sync.pending_changes(cat, s.library, str(paths.data / "derived"))
-    assert len(d.restore) == 1 and d.changes == 1
-    assert sort_library(paths, s).restored == 1
+    assert len(d.restore) == 1                      # without the hand-edit check it would come back
+    res = sort_library(paths, s)
+    assert res.hand_edits["removed"] == 1 and res.restored == 0
+    lib = _files(s.library)
+    assert "2019/Holidays/Christmas/xmas.jpg" not in lib
+    assert "2019/Other/xmas.jpg" in lib             # "not a Christmas photo": still in the library
+
+
+def test_photo_you_move_counts_as_a_correction(env):
+    paths, s, cat = _setup(env)
+    sort_library(paths, s)
+    moved_key = cat.scalar("SELECT content_key FROM owned_files WHERE rel_path='2017/Other/IMG_7.jpg'")
+    src = os.path.join(s.library, "2017", "Other", "IMG_7.jpg")
+    dest = os.path.join(s.library, "2017", "Pets", "IMG_7.jpg")
+    os.makedirs(os.path.dirname(dest))
+    os.replace(src, dest)
+    res = sort_library(paths, s)
+    assert res.hand_edits["moved"] == 1
+    assert cat.scalar("SELECT value FROM content_answers WHERE check_key='pet' AND undone=0") == 1
+    owned = {r[0]: r[1] for r in cat.q("SELECT rel_path, content_key FROM owned_files")}
+    assert owned["2017/Pets/IMG_7.jpg"] == moved_key                          # adopted where you put it
+    assert [r for r, k in owned.items() if k == moved_key] == ["2017/Pets/IMG_7.jpg"]   # and nowhere else
+    assert "2017/Other/IMG_7.jpg" in owned          # the other IMG_7 (was _2) now has the plain name
+
+
+def test_library_wiped_by_accident_is_copied_again(env):
+    import shutil
+    paths, s, cat = _setup(env)
+    n = sort_library(paths, s).added
+    shutil.rmtree(s.library)
+    res = sort_library(paths, s)
+    assert res.hand_edits["skipped"] and res.restored == n
 
 
 def test_removed_copy_leaves_library_and_empty_folder_goes(env):
@@ -90,8 +120,9 @@ def test_never_deletes_or_overwrites_your_files(env):
                        "JOIN files f ON f.id=a.file_id WHERE f.rel_path LIKE '%xmas.jpg')")
         cat.db.execute("DELETE FROM holidays")
     res = sort_library(paths, s)
-    assert res.edited_by_you == ["2019/Holidays/Christmas/xmas.jpg"]
-    assert os.path.exists(edited) and os.path.exists(mine)
+    assert res.hand_edits["edited"] == 1 and res.hand_edits["unknown"] == 1     # your edit, your notes
+    assert open(edited, "rb").read().endswith(b"edited by you")
+    assert os.path.exists(mine)
     assert "2019/Other/xmas.jpg" in _files(s.library)
     # A file of yours already where a photo should go is never overwritten.
     theirs = os.path.join(s.library, "2017", "Other", "IMG_7.jpg")
@@ -119,3 +150,26 @@ def test_clean_name():
     assert sync.clean_name("Mom: 2019?") == "Mom_ 2019_"
     assert sync.clean_name("con.jpg") == "_con.jpg"
     assert sync.clean_name("trailing. ") == "trailing"
+
+
+def test_find_original_and_report_corrections(env):
+    from imagecleanuper import corrections, dates, plan, restore
+    paths, s, cat = _setup(env)
+    sort_library(paths, s)
+    lib_file = os.path.join(s.library, "2019", "Holidays", "Christmas", "xmas.jpg")
+    info = restore.original_of(cat, s.library, lib_file)
+    assert info["orig_path"].endswith("xmas.jpg") and info["exists"] and info["backup_zip"]
+    derived = str(paths.data / "derived")
+    entry = plan.preview(cat, derived).folders["2019/Holidays/Christmas"][0]
+    aid, ck, year = corrections.asset_of(cat, entry.key)
+    tokens = corrections.move(cat, s, aid, ck, "2019/Holidays/Christmas", "2019/People/Grandma", year)
+    dates.resolve_all(cat, s)
+    pv = plan.preview(cat, derived)
+    assert "2019/Holidays/Christmas" not in pv.folders and [e.key for e in pv.folders["2019/People/Grandma"]] == [entry.key]
+    corrections.undo(cat, tokens)
+    dates.resolve_all(cat, s)
+    pv = plan.preview(cat, derived)
+    assert "2019/Holidays/Christmas" in pv.folders and "2019/People/Grandma" not in pv.folders
+    corrections.move(cat, s, aid, ck, "2019/Holidays/Christmas", "2004/Holidays/Christmas", year)   # wrong year
+    dates.resolve_all(cat, s)
+    assert "2004/Holidays/Christmas" in plan.preview(cat, derived).folders

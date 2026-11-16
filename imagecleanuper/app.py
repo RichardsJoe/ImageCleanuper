@@ -13,8 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import accuracy, backup, compare, content, dates, discover, finish as finish_mod, learned, log, people, plan, \
-    settings as settings_mod, sync
+from . import accuracy, backup, compare, content, dates, discover, finish as finish_mod, handedits, learned, log, \
+    people, plan, settings as settings_mod, sync
 from .ai import pass_ as ai_pass
 from .analyze import run as analyze_run
 from .catalog import Catalog, default_catalog_path
@@ -154,6 +154,7 @@ class Runner:
                                     "Check the log for the files involved and run again.")
 
                 counts["accuracy_scored"] = accuracy.close_round(cat)   # last round's answers count now
+                counts["library"] = handedits.detect(cat, self.settings, self.settings.library).counts()
 
                 cat.set_run(run_id, last_step="analyze")
                 counts["analyze"] = analyze_run.analyze_pending(cat, str(self.paths.data / "derived"), self._prog)
@@ -204,7 +205,14 @@ def sort_library(paths: AppPaths, s: settings_mod.Settings, progress: Progress |
     cat = Catalog(paths.catalog)
     try:
         with keep_awake():
-            return sync.sync_library(cat, s.library, str(paths.data / "derived"), s.categories, progress)
+            # Files you moved or deleted in the library since the last run count as corrections first,
+            # so sorting doesn't put them back.
+            ch = handedits.detect(cat, s, s.library)
+            if ch.moved or ch.removed:
+                dates.resolve_all(cat, s)
+            res = sync.sync_library(cat, s.library, str(paths.data / "derived"), s.categories, progress)
+            res.hand_edits = ch.counts()
+            return res
     finally:
         cat.close()
 

@@ -114,3 +114,37 @@ def find_files(cat: Catalog, text: str, limit: int = 200) -> list:
 def backups(cat: Catalog) -> list:
     return cat.q("SELECT id, zip_name, created_run, file_count, bytes, verified_at FROM backup_parts "
                  "WHERE verified=1 ORDER BY id")
+
+
+def original_of(cat: Catalog, library: str, library_file: str) -> dict | None:
+    """Where a library photo came from: its original path, whether it's still there, and its backup zip."""
+    from .paths import is_inside
+    path = os.path.abspath(library_file)
+    if not library or not is_inside(path, library):
+        return None
+    rel = os.path.relpath(path, os.path.abspath(library)).replace(os.sep, "/")
+    row = cat.one("SELECT content_key FROM owned_files WHERE rel_path=? COLLATE NOCASE", (rel,))
+    sha = row["content_key"].split(":")[0] if row else None
+    if sha is None:
+        from .fileops import sha256_file
+        try:
+            sha = sha256_file(path)
+        except OSError:
+            return None
+    return _original_by_sha(cat, sha)
+
+
+def original_by_file_id(cat: Catalog, file_id: int) -> dict | None:
+    sha = cat.scalar("SELECT sha256 FROM files WHERE id=?", (file_id,))
+    return _original_by_sha(cat, sha) if sha else None
+
+
+def _original_by_sha(cat: Catalog, sha: str) -> dict | None:
+    f = cat.one("SELECT id, orig_path, finished_at FROM files WHERE sha256=? ORDER BY finished_at IS NULL DESC, id "
+                "LIMIT 1", (sha,))
+    if not f:
+        return None
+    zip_name = cat.scalar("SELECT p.zip_name FROM backup_entries e JOIN backup_parts p ON p.id=e.part_id "
+                          "WHERE e.sha256=? AND p.verified=1 ORDER BY p.id LIMIT 1", (sha,))
+    return {"file_id": f["id"], "orig_path": f["orig_path"], "exists": os.path.exists(long_path(f["orig_path"])),
+            "finished": f["finished_at"] is not None, "backup_zip": zip_name}

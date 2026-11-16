@@ -6,6 +6,8 @@ over the models (rule: locked answers win).
   year        value = "YYYY"
   not_person  value = person name (this person isn't in this photo)
   person      value = person name (this person is in this photo, even if no face was found)
+  not_in      value = library folder ("2019/Other"): keep the photo out of that folder
+  in          value = library folder: cancels an earlier not_in
 """
 
 from __future__ import annotations
@@ -39,6 +41,10 @@ def active(cat: Catalog) -> dict[str, dict]:
             other = "not_person" if r["kind"] == "person" else "person"
             d.setdefault(other, {}).pop(r["value"].lower(), None)
             d.setdefault(r["kind"], {})[r["value"].lower()] = r["value"]   # lower-case name → name
+        elif r["kind"] == "not_in":
+            d.setdefault("not_in", set()).add(r["value"])
+        elif r["kind"] == "in":
+            d.setdefault("not_in", set()).discard(r["value"])
     return dict(out)
 
 

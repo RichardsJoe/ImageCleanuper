@@ -133,6 +133,12 @@ def preview(cat: Catalog, derived_dir: str, categories: dict | None = None) -> P
                         dests.append(f"{root}{year}/{labels[key]}")
             if not dests:
                 dests.append(f"{root}{year}/Other")
+        hidden = yours.get(entry.ckey, {}).get("not_in")
+        if hidden:                                # folders you took this photo out of
+            dests = [d for d in dests if d not in hidden]
+            if not dests:
+                totals["taken_out"] += 1
+                continue
         for d in dests:
             folders[d].append(entry)
         totals["sorted"] += 1
