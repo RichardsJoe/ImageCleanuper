@@ -144,6 +144,71 @@ EXTRA={
 "school":"Graduation photos|Teacher appreciation|Tutoring|Exams",
 }
 for k,v in EXTRA.items(): L[k]+="|"+v
+
+# Everyday words, nicknames and abbreviations -> icon. Used to pick an icon for names that aren't in the library
+# ("Bday bash" -> cake). Matched on whole words or word starts (4+ letters).
+KEYWORDS={
+"cake":"bday|birthday|bdays|cake|cupcake|sweet16|quince|turning",
+"gift":"xmas|christmas|chrimbo|present|presents|gift|gifts|santa|stocking|ornament",
+"heart":"love|valentine|romance|romantic|date|dating|wife|husband|hubby|wifey|bae|anniv|anniversary|honey|sweetheart|couple|boyfriend|girlfriend|fiance|fiancee|crush",
+"baby":"baby|babies|bub|bubba|kid|kids|kiddo|kiddos|toddler|newborn|infant|child|children|son|daughter|nursery|tot|tots|preschooler|bump|maternity|pregnant",
+"paw":"dog|dogs|pup|puppy|pupper|doggo|doggy|cat|cats|kitty|kitten|pet|pets|horse|pony|animal|animals|zoo|furbaby|fur",
+"ball":"sport|sports|league|match|matches|tourney|playoff|playoffs|varsity|jv|scrimmage|goal|soccer|footy|hoops|ballgame",
+"trophy":"nationals|regionals|sectionals|districts|finals|qualifiers|competition|competitions|contest|award|awards|winner|win|wins|champ|champs|champion|medal|podium|trophy",
+"water":"beach|beaches|swim|swimming|pool|lake|ocean|sea|surf|river|splash|waves|shore|coast|island|snorkel|scuba",
+"snow":"ski|skiing|snow|snowy|winter|ice|icy|frozen|sled|sledding|blizzard|frosty",
+"leaf":"fall|autumn|halloween|spooky|pumpkin|harvest|thanksgiving|turkey|leaves|hayride",
+"flower":"spring|flower|flowers|bloom|blooms|blossom|easter|bouquet|floral|petal|tulip|rose|roses",
+"sun":"summer|sunny|sunshine|tropical|heat|sunset|sunsets|sunrise|tan",
+"plane":"trip|trips|travel|travels|traveling|vacation|vacay|holiday|getaway|flight|flights|abroad|tour|tours|journey|adventure|adventures|passport|wanderlust|explore",
+"car":"car|cars|drive|driving|road|truck|auto|vehicle|jeep|motor|ride",
+"home":"home|house|apartment|apt|room|reno|renovation|move|moving|kitchen|nest|homestead|crib|condo",
+"food":"food|foodie|eat|eats|eating|meal|meals|dinner|dinners|lunch|brunch|breakfast|recipe|recipes|cook|cooking|restaurant|bbq|grill|feast|yum|yummy|snack|snacks|nom",
+"drink":"drink|drinks|wine|beer|beers|cocktail|cocktails|bar|bars|brew|booze|cheers|tipsy|pub",
+"coffee":"coffee|latte|espresso|tea|cafe|brew|java",
+"school":"school|class|classes|grade|college|uni|university|campus|grad|graduation|teacher|homework|semester|study|studies|academy|kinder",
+"work":"work|job|jobs|office|career|business|client|clients|biz|corporate|meeting|meetings|shift|hustle|boss|company",
+"music":"music|concert|concerts|band|song|songs|dance|dancing|recital|choir|gig|gigs|festival|playlist|jam",
+"film":"movie|movies|film|films|video|videos|show|shows|theater|theatre|tv|cinema|broadway|play",
+"game":"game|games|gaming|gamer|puzzle|puzzles|board|cards|chess|lego|nintendo|xbox|playstation|arcade",
+"art":"art|arts|craft|crafts|crafting|paint|painting|draw|drawing|sew|sewing|knit|knitting|design|creative|sketch",
+"camera":"photo|photos|pic|pics|picture|pictures|shoot|photoshoot|snapshot|insta|gram|camera|lens",
+"document":"doc|docs|document|receipt|receipts|bill|bills|tax|taxes|form|forms|id|paper|papers|paperwork|ticket|tickets|license|certificate|statement|invoice|warranty|manual",
+"health":"health|doctor|doc|medical|hospital|dentist|dental|clinic|surgery|recovery|meds|therapy|checkup|wellness",
+"fitness":"gym|workout|workouts|run|running|fitness|yoga|lift|lifting|cardio|marathon|training|swole|crossfit",
+"people":"family|families|friend|friends|crew|squad|gang|group|reunion|fam|besties|bestie|cousins|siblings|clan|tribe|folks|relatives|team|neighbors|buddies|pals|peeps",
+"person":"me|myself|mom|mum|mama|mommy|dad|daddy|papa|grandma|grandpa|nana|granny|bro|sis|portrait|portraits|selfie|selfies|headshot|aunt|uncle|auntie",
+"faith":"church|faith|temple|mosque|synagogue|prayer|baptism|blessing|holy|worship|mass|religious|spiritual",
+"tree":"nature|park|parks|forest|woods|trail|trails|outdoor|outdoors|tree|trees|wild|wilderness|green",
+"mountain":"hike|hikes|hiking|mountain|mountains|climb|climbing|peak|summit|trek|canyon|desert",
+"tent":"camp|camping|campsite|scout|scouts|glamp|glamping|tent|cabin",
+"sparkle":"best|highlight|highlights|moment|moments|special|first|firsts|milestone|milestones|magic|epic|wow",
+"smile":"funny|lol|lmao|meme|memes|silly|joke|jokes|goofy|haha|laugh|laughs|fun|cute|happy",
+"archive":"old|vintage|archive|archives|scan|scans|scanned|misc|random|backup|unsorted|retro|throwback|tbt|legacy",
+"screen":"screenshot|screenshots|screen|app|apps|online|social|web|website|digital|zoom|stream",
+"phone":"phone|text|texts|whatsapp|imessage|download|downloads|saved|shared|snapchat",
+"shop":"shop|shopping|buy|bought|store|sale|sales|haul|mall|thrift|deal|deals|merch",
+"city":"city|cities|town|downtown|nyc|urban|street|streets|skyline|metro|village",
+"flag":"country|countries|nation|national|military|army|navy|patriotic|usa|america|veteran|vets",
+"star":"fav|favs|fave|faves|favorite|favorites|favourite|top|starred|keeper|keepers",
+"year":"year|years|month|months|annual|yearly|calendar|anniversaire",
+"boat":"boat|boats|boating|sail|sailing|cruise|cruising|yacht|ferry|kayak|canoe",
+"bike":"bike|bikes|biking|cycle|cycling|bmx|skate|skating|scooter",
+"fish":"fish|fishing|catch|reef|aquarium|whale|shark",
+"ring":"wedding|weddings|wed|married|marriage|bride|groom|engaged|engagement|elope|vows|bridal",
+"balloon":"party|parties|celebration|celebrate|bash|fiesta|shindig|bday party|carnival|fair",
+"tools":"diy|project|projects|fix|repair|repairs|build|building|tools|workshop|maker|restore",
+"sprout":"garden|gardening|plant|plants|grow|growing|seeds|yard|lawn|veggie|veggies",
+"cloud":"weather|storm|storms|rain|rainy|cloud|clouds|sky|wind|tornado|hurricane",
+"moon":"night|nights|moon|stars|fireworks|nye|evening|midnight|eclipse",
+"train":"train|trains|rail|subway|metro|tram|bus",
+"farm":"farm|farms|ranch|barn|tractor|orchard|country",
+"shirt":"fashion|outfit|outfits|ootd|clothes|style|costume|costumes|dress|shoes|wardrobe",
+"drop":"color|colors|colour|black|white|red|blue|green|pastel|abstract|pattern",
+"clock":"morning|afternoon|daily|everyday|routine|time|timelapse|history|then",
+"map":"map|maps|visited|places|route|routes|itinerary|explore|exploring|geocache",
+"book":"book|books|reading|read|library|journal|journals|scrapbook|notes|comic|comics",
+}
 seen=set();lib=[]
 for ic,names in L.items():
   assert ic in ICONS,ic
@@ -183,5 +248,11 @@ if N:
   lib=picked
   js="/* Built-in category library: "+str(len(lib))+" names people commonly use, each with an icon, most common first.\n   Hidden from the user. Used to suggest names while typing a new category and to auto-assign its icon. */\n"
   js+="window.CATEGORY_ICONS="+json.dumps(ICONS,ensure_ascii=False,indent=0)+";\n"
+  kwmap={}
+  for ic,ws in KEYWORDS.items():
+    assert ic in ICONS,ic
+    for w in ws.split("|"):
+      kwmap.setdefault(w.lower(),ic)
+  js+="window.CATEGORY_KEYWORDS="+json.dumps(kwmap,ensure_ascii=False,separators=(",",":"))+";\n"
   js+="window.CATEGORY_LIBRARY="+json.dumps(lib,ensure_ascii=False,separators=(",",":"))+";\n"
   open(out,"w").write(js);print("wrote",len(lib))

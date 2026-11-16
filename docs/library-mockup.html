@@ -438,12 +438,32 @@ const stem=w=>w.replace(/(ies)$/,"y").replace(/s$/,"");
 const norm=s=>s.toLowerCase().replace(/['’]/g,""); // "Kids' soccer" matches "kids s"
 const LIB_L=LIB.map(([n])=>norm(n)),LIB_RAW=LIB_L.map(words),LIB_W=LIB_RAW.map(ws=>ws.map(stem));
 // Best icon for any name: exact library match, then a shared word, last word first ("Grandpa's farm" -> farm), else a plain tag.
+// Order: exact name -> a word shared with a library name -> everyday word/nickname table ("bday" -> cake)
+// -> word start in that table ("bdays", "vacations") -> plain tag. Words are tried last first.
+const KW=window.CATEGORY_KEYWORDS||{},KW_LONG=Object.keys(KW).filter(k=>k.length>=4);
+// Filler words only count when nothing more specific matches ("Doggo adventures" -> doggo, not adventures). Numbers are ignored.
+const WEAK=new Set("a an and the of my our your his her their with to for at in on from by me us pics pic pictures picture photos photo images image shots album albums collection weekend weekends adventure adventures goal goals time times day days fun memories memory life stuff things best favorite favorites misc moment moments national stories story new old good great little big first last trip trips night nights week weeks year years month months season seasons vibes diaries chronicles journey".split(" "));
+function wordIcon(w){
+  const k=KW[w]||KW[stem(w)];if(k)return k;
+  if(w.length>=3){const s=stem(w),i=LIB_W.findIndex(x=>x.includes(s));if(i>=0)return LIB[i][1];}
+  if(w.length>=4){const p=KW_LONG.find(k=>w.startsWith(k)||k.startsWith(w));if(p)return KW[p];}
+  return null;
+}
 function iconFor(name){
-  const l=name.trim().toLowerCase(),ex=LIB.find(([n])=>n.toLowerCase()===l);if(ex)return ex[1];
-  const ws=words(l).filter(w=>w.length>2).map(stem).reverse(); // last word is usually the main noun
-  for(const w of ws){const i=LIB_W.findIndex(x=>x.includes(w));if(i>=0)return LIB[i][1];}
+  const l=norm(name.trim()),i0=LIB_L.indexOf(l);if(i0>=0)return LIB[i0][1];
+  const raw=words(l).filter(w=>!/^\d+$/.test(w)).reverse(); // last word first: it's usually the main noun
+  for(const pass of [raw.filter(w=>!WEAK.has(w)),raw.filter(w=>WEAK.has(w))])
+    for(const w of pass){const ic=wordIcon(w);if(ic)return ic;}
   return "tag";
 }
+// Categories you create that aren't in the library are learned: saved on this device and suggested first next time.
+const LEARN_KEY="learnedCats";
+function learnCat(name,icon,persist=true){
+  const l=norm(name);if(LIB_L.includes(l))return;
+  const r=words(l);LIB.unshift([name,icon]);LIB_L.unshift(l);LIB_RAW.unshift(r);LIB_W.unshift(r.map(stem));
+  if(persist){let a=[];try{a=JSON.parse(localStorage.getItem(LEARN_KEY))||[];}catch(e){}a.unshift([name,icon]);save(LEARN_KEY,a.slice(0,1000));}
+}
+try{(JSON.parse(localStorage.getItem(LEARN_KEY))||[]).slice().reverse().forEach(([n,i])=>learnCat(n,i,false));}catch(e){}
 // Up to 6 library names for what's typed: starts-with first, then word starts, then contains. Skips categories you already have.
 function suggestCats(q){
   q=norm(q.trim());if(!q)return[];
@@ -669,12 +689,12 @@ function addTag(g,t){
 function addCategory(name){
   const g="c"+Date.now(),used=Object.keys(GROUPS).map(k=>COLORS[k]);
   COLORS[g]=PALETTE.find(c=>!used.includes(c))||PALETTE[Object.keys(GROUPS).length%PALETTE.length];
-  GROUPS[g]=name;state.icons[g]=iconFor(name);photos.forEach(p=>p.tags[g]=[]);
+  GROUPS[g]=name;state.icons[g]=iconFor(name);learnCat(name,state.icons[g]);photos.forEach(p=>p.tags[g]=[]);
   state.order.unshift(g);save(ORDER_KEY,state.order);state.adding=g;state.focusNew=true;
 }
 $("rail").addEventListener("submit",e=>{
   e.preventDefault();const f=e.target,v=f.querySelector("input").value.replace(/[<>"&`]/g,"").trim();
-  if(f.dataset.renameform){const g=f.dataset.renameform;if(v){GROUPS[g]=v;const ic=iconFor(v);if(ic!=="tag")state.icons[g]=ic;}closeInline();return render();}
+  if(f.dataset.renameform){const g=f.dataset.renameform;if(v){GROUPS[g]=v;const ic=iconFor(v);if(ic!=="tag")state.icons[g]=ic;learnCat(v,state.icons[g]||ic);}closeInline();return render();}
   state.adding=null;
   if(v&&f.dataset.newtag)addTag(f.dataset.newtag,v);
   else if(v&&f.hasAttribute("data-newcat"))addCategory(v);
