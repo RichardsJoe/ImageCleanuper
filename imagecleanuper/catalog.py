@@ -359,6 +359,16 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (content_key, check_key)
     );
     """,
+    # 16: faces that aren't worth asking about (background people, dolls, posters)
+    """
+    ALTER TABLE faces ADD COLUMN sharp REAL;                         -- blur measure of the face crop
+    ALTER TABLE faces ADD COLUMN ignored INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE faces ADD COLUMN ignore_reason TEXT;                 -- background | like_ignored | you
+    ALTER TABLE face_refs ADD COLUMN ignore INTEGER NOT NULL DEFAULT 0;   -- "Not a person" examples
+    ALTER TABLE faces ADD COLUMN guess_person INTEGER;               -- probably this person, not sure enough
+    ALTER TABLE faces ADD COLUMN guess_score REAL;
+    ALTER TABLE faces ADD COLUMN guess_rejected INTEGER;             -- you said it isn't guess_person
+    """,
 ]
 
 

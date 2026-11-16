@@ -209,6 +209,8 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 - **Updates:** Check for updates opens the GitHub Releases page (the repo is private, so the app can't check by itself).
 - **Google Photos:** Takeout zips are copied into the backup (they are the backup of their photos), unpacked, and Google's sidecar dates are used.
 
+- **Fewer questions (v24):** background faces (small for the photo and blurry, or tiny) are skipped automatically; **Not a person (B)** for dolls, posters and background faces, remembered so look-alikes are skipped too; only people seen in at least 2 photos are asked about. **Who is this?** shows up to 15 faces of one person at once, all ticked: untick strays, name once, and the rest of that person's faces are matched straight away. Yes/No questions (Pets, categories, Junk) and "Which of these are <name>?" come as **grids** of 15; the most uncertain first; Skip the rest (K) waits until the next run.
+
 ### Parked ideas (not in the current plan)
 - **Enhance old photos** (colour/fade correction, grain removal, sharpening). Tested on a real 1980s print: rule-based settings help colour; **Claude-guided settings** (Claude looks at each photo and picks the settings, local tools apply them, about a cent per photo) gave the best result. Claude can't edit images itself. Optional local AI models would remove grain far better. Parked until the rest of the app is working; would slot in after cut-out/rotate/trim with a Keep enhanced / Use original review question.
 
@@ -245,3 +247,4 @@ A photo goes into **every** folder it belongs to (Calvin on a mountain at Christ
 21. 2026-11-16 · v21: Finish (checked moves, Recycle Bin for removed copies, empty folders deleted, crash recovery); _Add New Photos drop folder.
 22. 2026-11-16 · v22: Accuracy check and scorecard; Report M/Del/O; hand edits in the library; Settings tabs incl. People; Google Photos import.
 23. 2026-11-16 · v23: Claude second opinion with key popup and spending limit; Check for updates; version 1.0.0.
+24. 2026-11-16 · v24: Background faces skipped; Not a person; Who is this? as a mass-confirm grid; Yes/No and person questions as grids.

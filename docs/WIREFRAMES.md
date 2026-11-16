@@ -76,7 +76,7 @@ The app offers to continue from the last photo. Nothing is lost.
 ![Resume](wireframes/07-resume.svg)
 
 ### 7. Who is this? (first run, then whenever new faces appear)
-One person at a time. The app offers its **3 best guesses** (the people this face looks most like) as big buttons with **1 / 2 / 3** hotkeys; type a name only when it isn't one of them (names also auto-complete as you type), or press Stranger.
+One person at a time. The app offers its **3 best guesses** (the people this face looks most like) as big buttons with **1 / 2 / 3** hotkeys; type a name only when it isn't one of them (names also auto-complete as you type), or press Stranger. **Not a person (B)** is for dolls, posters, statues and faces in the background: they're never asked about again, nor anything that looks like them (Settings › People can bring one back). Faces that are small for the photo *and* blurry are skipped automatically, and only people seen in at least 2 photos are asked about.
 
 ![Who is this](wireframes/08-who-is-this.svg)
 
@@ -94,6 +94,10 @@ The Next step, what's waiting for you, the accuracy scorecard, and when the last
 **Start review** walks through everything waiting, in this order, so you never have to choose: Who is this? → Needs review → Accuracy check → Duplicates → Junk. Press Esc any time; progress is saved.
 
 ![Needs review](wireframes/09-needs-review.svg)
+
+Yes/No questions come as a **grid** (up to 15 photos per screen): "Which of these have a pet in them?", "Which of these belong in Scenic?", "Which of these are junk?", and "Which of these are Joseph?" (faces that probably are someone you named). Click the ones that are; Enter saves the page and the rest count as No. The most uncertain photos come first because they teach the model the most, so after a page or two per question the next run asks far fewer. **Skip the rest (K)** leaves a question until after the next run.
+
+![Needs review grid](wireframes/09b-review-grid.svg)
 
 ![Accuracy check](wireframes/10-accuracy-check.svg)
 

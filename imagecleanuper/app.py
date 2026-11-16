@@ -163,7 +163,7 @@ class Runner:
 
                 cat.set_run(run_id, last_step="ai")
                 counts["ai"] = ai_pass.run(cat, str(self.paths.data), self.settings.min_face_px, self._prog)
-                counts["people"] = people.match_all(cat)
+                counts["people"] = people.match_all(cat, str(self.paths.data / "faces"))
                 counts["content"] = content.classify_all(cat, self.settings)
                 if self.settings.claude_enabled:
                     from . import claude_assist

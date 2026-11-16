@@ -467,6 +467,24 @@ class App(ctk.CTk):
                           ).pack(side="left")
             ctk.CTkLabel(row, text=plural(p["photos"], "photo"), text_color=MUTED, width=90).pack(side="left", padx=8)
             faces_row(row, p["faces"], True)
+        c = Catalog(self.paths.catalog)
+        try:
+            ignored = people_mod.ignored_faces(c)
+        finally:
+            c.close()
+        if ignored:
+            self._section(b, "Not a person", "Faces you marked Not a person (dolls, posters, background). Anything that "
+                          "looks like them is ignored too. Click one to bring it back.")
+            row = ctk.CTkFrame(b, fg_color="transparent")
+            row.pack(fill="x", pady=4)
+            for f in ignored[:24]:
+                im = self._thumb(str(self.paths.data / "faces" / f["crop_path"]), (48, 48))
+                if im is None:
+                    continue
+                self._images.append(im)
+                lab = ctk.CTkLabel(row, image=im, text="")
+                lab.pack(side="left", padx=2)
+                lab.bind("<Button-1>", lambda e, fid=f["id"]: act(people_mod.unignore, fid))
         self._section(b, "Strangers", "People you marked as strangers. Type a name if you know who it is: they "
                       "become a known person and get their own folder.")
         if not strangers:
@@ -647,7 +665,9 @@ class App(ctk.CTk):
                              ("Ctrl+Z", "Undo your last answer"))),
                ("Running", (("Space", "Pause"),)),
                ("Who is this?", (("1 2 3", "Pick a suggested name"), ("Enter", "Save the typed name"),
-                                 ("S", "Stranger"))),
+                                 ("S", "Stranger"), ("B", "Not a person (doll, poster, background)"))),
+               ("Needs review grid", (("Click / 1–9", "Pick the photos that are"), ("A", "Pick all"),
+                                      ("Enter", "Save the page (the rest are No)"), ("K", "Skip this question for now"))),
                ("Needs review / Accuracy check", (("1–9", "Answer"), ("Y / N", "Yes / No"), ("→", "Skip"),
                                                   ("←", "Back"))),
                ("Duplicates & bursts", (("1–9", "Select a copy"), ("D", "Keep selected, remove the rest"),
@@ -891,7 +911,8 @@ class App(ctk.CTk):
             try:
                 from .. import people as people_mod
                 info["fixes"] = review_mod.count(cat)
-                info["who"] = len(people_mod.groups(cat, limit=self.settings.people_per_round))
+                info["who"] = len(people_mod.groups(cat, limit=self.settings.people_per_round)) + \
+                    people_mod.guess_count(cat)
                 from .. import copies as copies_mod
                 info["copies"] = copies_mod.count_undecided(cat)
                 from .. import accuracy as acc_mod
@@ -1170,6 +1191,7 @@ class App(ctk.CTk):
                     self._show_progress(*msg[1:])
                 elif kind == "done":
                     self.runner = None
+                    self._skip_person_grid = False
                     self.folders_changed = False
                     self.show_home()
                 elif kind == "error":
@@ -1195,9 +1217,12 @@ class App(ctk.CTk):
             from .. import people as people_mod
             c = Catalog(self.paths.catalog)
             try:
+                likely = None if getattr(self, "_skip_person_grid", False) else people_mod.person_page(c)
                 waiting = people_mod.groups(c, limit=self.settings.people_per_round)
             finally:
                 c.close()
+            if likely and index == 0:
+                return self.show_person_grid(likely)
             if waiting and index < len(waiting):
                 return self.show_who(index, waiting)
             if waiting:
@@ -1205,11 +1230,12 @@ class App(ctk.CTk):
         from .. import review as review_mod
         derived = str(self.paths.data / "derived")
         cat = Catalog(self.paths.catalog) if self.paths.catalog.exists() else None
-        items = review_mod.queue(cat, derived, self.settings.categories) if cat else []
+        items = [i for i in review_mod.queue(cat, derived, self.settings.categories)
+                 if i.question != "content"] if cat else []
         if cat:
             cat.close()
-        if index >= len(items):        # past the last question: duplicates and burst shots come next
-            return self.show_dups(0)
+        if index >= len(items):        # past the last fix: yes/no questions as a grid, then duplicates
+            return self.show_review_grid()
         index = max(0, index)
         it = items[index]
         b = self._screen(it.title, nav="review",
@@ -1283,6 +1309,184 @@ class App(ctk.CTk):
         self._hotkey_line(f"Enter {accept_label} · " + ("" if it.question == "content" else "R Rotate again · ")
                           + f"U {undo_label} · → Skip · ← Back · Ctrl+Z Undo · Esc Home")
 
+    # ---- yes/no questions as a grid (wireframe 09b) ---------------------------------
+    def show_review_grid(self, selected: set | None = None):
+        from .. import review as rv
+        derived = str(self.paths.data / "derived")
+        pg = None
+        if self.paths.catalog.exists():
+            c = Catalog(self.paths.catalog)
+            try:
+                pg = rv.grid_page(c, derived, self.settings.categories)
+            finally:
+                c.close()
+        if pg is None:
+            return self.show_dups(0)
+        selected = set(selected or ())
+        label = pg.title.replace("Which of these ", "").rstrip("?")
+        b = self._screen(pg.title, nav="review", subtitle=f"Click the photos that do (or press 1-9). Enter saves: "
+                         f"the ones you didn't pick are No.      {plural(pg.total, 'photo')} left for this question")
+        cw, ch = self._avail()
+        cols = 5
+        tw = int(max(120, min(300, (cw - 20) / cols - 14)))
+        th = int(max(90, min((ch - 40) / 3 - 30, tw * 0.75)))
+        grid = ctk.CTkFrame(b, fg_color="transparent")
+        grid.pack(fill="x")
+        self._images = []
+
+        def toggle(i):
+            self.show_review_grid(selected ^ {i})
+        for i, (aid, img) in enumerate(pg.items):
+            on = i in selected
+            card = ctk.CTkFrame(grid, border_width=3 if on else 1, border_color=BLUE if on else ("gray75", "gray35"),
+                                fg_color=("#eef4ff", "#1e2a3a") if on else "transparent")
+            card.grid(row=i // cols, column=i % cols, padx=5, pady=5, sticky="n")
+            box = self._image_box(card, img, (tw, th), (f"{i + 1}" if i < 9 else " ") + ("   ✓" if on else ""))
+            box.pack(padx=4, pady=4)
+            for w in [card, box, *box.winfo_children()]:
+                w.bind("<Button-1>", lambda e, i=i: toggle(i))
+            if i < 9:
+                self.bind(str(i + 1), self._not_typing(lambda i=i: toggle(i)))
+
+        def save():
+            yes = [pg.items[i][0] for i in sorted(selected)]
+            no = [aid for i, (aid, _) in enumerate(pg.items) if i not in selected]
+            c = Catalog(self.paths.catalog)
+            try:
+                ids = rv.answer_page(c, pg.check, yes, no)
+            finally:
+                c.close()
+            self._grid_undo = getattr(self, "_grid_undo", []) + [ids]
+            self.show_review_grid()
+
+        def skip_rest():
+            c = Catalog(self.paths.catalog)
+            try:
+                rv.skip_check(c, pg.check)
+            finally:
+                c.close()
+            self.show_review_grid()
+
+        def undo():
+            stack = getattr(self, "_grid_undo", [])
+            if stack:
+                c = Catalog(self.paths.catalog)
+                try:
+                    rv.undo_page(c, stack.pop())
+                finally:
+                    c.close()
+            self.show_review_grid()
+        short = {"pet": "Pets", "junk": "Junk"}.get(pg.check) or label.split("belong in ")[-1]
+        ctk.CTkButton(self.footer_area, text="Back  (←)", fg_color="transparent", border_width=1, width=110,
+                      text_color=("gray20", "gray85"), command=undo).pack(side="left")
+        ctk.CTkButton(self.footer_area, text=f"Skip the rest of {short}  (K)", fg_color="transparent",
+                      border_width=1, width=230, text_color=("gray20", "gray85"), command=skip_rest
+                      ).pack(side="left", padx=8)
+        n_yes = len(selected)
+        ctk.CTkButton(self.footer_area, text=f"Save: {n_yes} yes, {len(pg.items) - n_yes} no  (Enter)", fg_color=BLUE,
+                      height=38, width=260, command=save).pack(side="right")
+        self.bind("<Return>", lambda e: save())
+        self.bind("a", self._not_typing(lambda: self.show_review_grid(set(range(len(pg.items))))))
+        self.bind("k", self._not_typing(skip_rest))
+        self.bind("<Left>", self._not_typing(undo))
+        self.bind("<Control-z>", lambda e: undo())
+        self.bind("<Escape>", lambda e: self.show_home())
+        self._hotkey_line("Click or 1-9 Pick · A All · Enter Save page · K Skip this question for now · "
+                          "Ctrl+Z Undo page · Esc Home")
+
+    def show_person_grid(self, pg=None, selected: set | None = None):
+        """"Which of these are Joseph?": faces that probably are someone you named (wireframe 09b)."""
+        from .. import people as people_mod
+        if pg is None:
+            c = Catalog(self.paths.catalog)
+            try:
+                pg = people_mod.person_page(c)
+            finally:
+                c.close()
+        if pg is None:
+            return self._after_person_grid()
+        selected = set(selected or ())
+        b = self._screen(f"Which of these are {pg.name}?", nav="review",
+                         subtitle=f"Click the ones that are (or press 1-9). Enter saves: the rest aren't "
+                                  f"{pg.name}.      {plural(pg.total, 'face')} waiting")
+        cw, ch = self._avail()
+        cols = 5
+        tw = int(max(120, min(300, (cw - 20) / cols - 14)))
+        th = int(max(90, min((ch - 40) / 3 - 30, tw * 0.75)))
+        grid = ctk.CTkFrame(b, fg_color="transparent")
+        grid.pack(fill="x")
+        self._images = []
+
+        def toggle(i):
+            self.show_person_grid(pg, selected ^ {i})
+        for i, f in enumerate(pg.faces):
+            on = i in selected
+            card = ctk.CTkFrame(grid, border_width=3 if on else 1, border_color=BLUE if on else ("gray75", "gray35"),
+                                fg_color=("#eef4ff", "#1e2a3a") if on else "transparent")
+            card.grid(row=i // cols, column=i % cols, padx=5, pady=5, sticky="n")
+            img = str(self.paths.data / "derived" / f["derived_path"]) if f["derived_path"] else f["orig_path"]
+            row = ctk.CTkFrame(card, fg_color="transparent")
+            row.pack(padx=4, pady=4)
+            face = str(self.paths.data / "faces" / f["crop_path"]) if f["crop_path"] else None
+            fs = int(th * 0.9)
+            a = self._image_box(row, face, (fs, fs))
+            a.pack(side="left")
+            p = self._image_box(row, img, (max(60, tw - fs - 6), th), crop=("circle", (f["x"], f["y"], f["w"], f["h"])))
+            p.pack(side="left", padx=(4, 0))
+            lab = ctk.CTkLabel(card, text=(f"{i + 1}" if i < 9 else " ") + ("   ✓" if on else ""), text_color=MUTED)
+            lab.pack()
+            for w in [card, row, a, p, lab, *a.winfo_children(), *p.winfo_children()]:
+                w.bind("<Button-1>", lambda e, i=i: toggle(i))
+            if i < 9:
+                self.bind(str(i + 1), self._not_typing(lambda i=i: toggle(i)))
+
+        def save():
+            yes = [pg.faces[i]["id"] for i in sorted(selected)]
+            no = [f["id"] for i, f in enumerate(pg.faces) if i not in selected]
+            c = Catalog(self.paths.catalog)
+            try:
+                tok = people_mod.answer_person_page(c, pg.person_id, yes, no)
+            finally:
+                c.close()
+            self._person_undo = getattr(self, "_person_undo", []) + [tok]
+            self.show_person_grid()
+
+        def undo():
+            stack = getattr(self, "_person_undo", [])
+            if stack:
+                c = Catalog(self.paths.catalog)
+                try:
+                    people_mod.undo_person_page(c, stack.pop())
+                finally:
+                    c.close()
+            self.show_person_grid()
+
+        def skip_rest():
+            self._skip_person_grid = True      # until the next run
+            self.show_review(0)
+        ctk.CTkButton(self.footer_area, text="Back  (←)", fg_color="transparent", border_width=1, width=110,
+                      text_color=("gray20", "gray85"), command=undo).pack(side="left")
+        ctk.CTkButton(self.footer_area, text="Skip these for now  (K)", fg_color="transparent", border_width=1,
+                      width=220, text_color=("gray20", "gray85"), command=skip_rest).pack(side="left", padx=8)
+        ctk.CTkButton(self.footer_area, text=f"Save: {len(selected)} are {pg.name}  (Enter)", fg_color=BLUE,
+                      height=38, width=260, command=save).pack(side="right")
+        self.bind("<Return>", lambda e: save())
+        self.bind("a", self._not_typing(lambda: self.show_person_grid(pg, set(range(len(pg.faces))))))
+        self.bind("k", self._not_typing(skip_rest))
+        self.bind("<Left>", self._not_typing(undo))
+        self.bind("<Control-z>", lambda e: undo())
+        self.bind("<Escape>", lambda e: self.show_home())
+        self._hotkey_line("Click or 1-9 Pick · A All · Enter Save page · K Skip for now · Ctrl+Z Undo page · Esc Home")
+
+    def _after_person_grid(self):
+        """No likely faces left: carry on with Who is this? and the rest of the queue."""
+        was = getattr(self, "_skip_person_grid", False)
+        self._skip_person_grid = True
+        try:
+            return self.show_review(0)
+        finally:
+            self._skip_person_grid = was
+
     # ---- who is this? (wireframe 08) ----------------------------------------------
     def _avail(self) -> tuple[int, int]:
         """Space for content (width, height) in the middle column, so previews can fill it."""
@@ -1291,7 +1495,7 @@ class App(ctk.CTk):
         h = max(self.winfo_height(), 640)
         return w - 170 - 64 - 30, h - 210
 
-    def show_who(self, index: int, groups=None):
+    def show_who(self, index: int, groups=None, unticked: set | None = None):
         from .. import people as people_mod
         c = Catalog(self.paths.catalog)
         try:
@@ -1310,39 +1514,52 @@ class App(ctk.CTk):
         finally:
             c.close()
         total = len(groups)
+        unticked = set(unticked or ())
         cw, ch = self._avail()
         b = self._screen("Who is this?", nav="review", subtitle=(
-            f"Seen in {plural(g.photos, 'photo')}. Pick a suggestion (1-3), type a name, or press Stranger."
-            f"      Person {index + 1} of {total}"))
+            f"Seen in {plural(g.photos, 'photo')}. Untick any that aren't the same person, then pick or type "
+            f"the name.      Person {index + 1} of {total}"))
         side_w = 290
         left_w = cw - side_w - 20
-        face_px = int(max(80, min(150, (left_w - 50) / 6)))
-        photo_h = int(max(150, min(460, ch - face_px - 90)))
-        photo_w = int((left_w - 12) / 2)
         top = ctk.CTkFrame(b, fg_color="transparent")
         top.pack(fill="both", expand=True)
         left = ctk.CTkFrame(top, fg_color="transparent")
         left.pack(side="left", fill="both", expand=True)
         side = ctk.CTkFrame(top, fg_color="transparent", width=side_w)
         side.pack(side="left", fill="y", padx=(20, 0), anchor="n")
-        faces_row = ctk.CTkFrame(left, fg_color="transparent")
-        faces_row.pack(fill="x", pady=(2, 8))
-        for f, _ in samples:
+        cols = 5
+        card_w = int(max(110, min(240, (left_w - 10) / cols - 12)))
+        rows_n = (len(samples) + cols - 1) // cols
+        face_px = int(max(60, min(card_w - 16, (ch - 120) / max(rows_n, 1) * 0.45)))
+        grid = ctk.CTkFrame(left, fg_color="transparent")
+        grid.pack(fill="x", pady=(2, 6))
+        self._images = []
+        for k, (f, img) in enumerate(samples):
+            on = f["id"] not in unticked
+            card = ctk.CTkFrame(grid, border_width=3 if on else 1, border_color=BLUE if on else ("gray75", "gray35"),
+                                fg_color=("#eef4ff", "#1e2a3a") if on else "transparent")
+            card.grid(row=k // cols, column=k % cols, padx=5, pady=5, sticky="n")
             crop = str(self.paths.data / "faces" / f["crop_path"]) if f["crop_path"] else None
-            self._image_box(faces_row, crop, (face_px, face_px)).pack(side="left", padx=(0, 8))
-        ctk.CTkLabel(left, text="In the photo (the face asked about is circled):", text_color=MUTED,
-                     anchor="w").pack(fill="x")
-        prow = ctk.CTkFrame(left, fg_color="transparent")
-        prow.pack(fill="x", pady=4)
-        for f, img in samples[:2]:
-            self._image_box(prow, img, (photo_w, photo_h), crop=("circle", (f["x"], f["y"], f["w"], f["h"]))
-                            ).pack(side="left", padx=(0, 12))
+            a = self._image_box(card, crop, (face_px, face_px), "✓" if on else "not them")
+            a.pack(padx=6, pady=(6, 2))
+            p = self._image_box(card, img, (card_w - 12, int(face_px * 0.9)),
+                                crop=("circle", (f["x"], f["y"], f["w"], f["h"])))
+            p.pack(padx=6, pady=(0, 6))
+            for w in [card, a, p, *a.winfo_children(), *p.winfo_children()]:
+                w.bind("<Button-1>", lambda e, fid=f["id"]: self.show_who(index, groups, unticked ^ {fid}))
+        chosen = [f["id"] for f, _ in samples if f["id"] not in unticked]
+        rejected = [f["id"] for f, _ in samples if f["id"] in unticked]
+        if len(g.face_ids) > len(samples):
+            ctk.CTkLabel(left, text=f"Showing the {len(samples)} most alike of {len(g.face_ids)}. The rest are matched "
+                         "automatically once you save.", text_color=MUTED, anchor="w").pack(fill="x")
 
         def done():
             self.show_review(index)   # the next group slides into this position
 
         def pick(name):
-            self._save_name(g.face_ids, name)
+            if not chosen:
+                return
+            self._save_name(chosen, name, rejected)
             done()
         ctk.CTkLabel(side, text="Suggestions", font=ctk.CTkFont(weight="bold"), anchor="w").pack(fill="x")
         if not suggestions:
@@ -1390,13 +1607,25 @@ class App(ctk.CTk):
             finally:
                 c2.close()
             if close:
-                return self._confirm_name(close, typed, g.face_ids, lambda *a: done())
+                return self._confirm_name(close, typed, chosen, lambda *a: done(), rejected)
             pick(typed)
 
         def stranger():
             c2 = Catalog(self.paths.catalog)
             try:
-                people_mod.mark_stranger(c2, g.face_ids)
+                if chosen:
+                    people_mod.mark_stranger(c2, chosen)
+                    people_mod.match_all(c2)      # the rest of the group follows
+            finally:
+                c2.close()
+            done()
+
+        def not_person():
+            c2 = Catalog(self.paths.catalog)
+            try:
+                if chosen:
+                    people_mod.not_a_person(c2, chosen)
+                    people_mod.match_all(c2)
             finally:
                 c2.close()
             done()
@@ -1418,26 +1647,30 @@ class App(ctk.CTk):
                       command=save).pack(side="right")
         ctk.CTkButton(self.footer_area, text="Stranger  (S)", fg_color="transparent", border_width=1, width=150,
                       text_color=("gray15", "gray90"), command=stranger).pack(side="right", padx=8)
+        ctk.CTkButton(self.footer_area, text="Not a person  (B)", fg_color="transparent", border_width=1, width=160,
+                      text_color=("gray15", "gray90"), command=not_person).pack(side="right")
         self.bind("<Return>", lambda e: save())
         self.bind("<Key-s>", self._not_typing(stranger))
+        self.bind("<Key-b>", self._not_typing(not_person))
         self.bind("<Key-n>", self._not_typing(lambda: entry.focus_set()))
         self.bind("<Right>", self._not_typing(lambda: self.show_review(index + 1)))
         self.bind("<Left>", self._not_typing(lambda: self.show_who(index - 1)))
         self.bind("<Escape>", lambda e: self.focus_set() if "entry" in str(self.focus_get()).lower()
                   else self.show_home())
         self.bind("<Control-z>", lambda e: undo())
-        self._hotkey_line("1-3 Pick a suggestion · Enter Save typed name · S Stranger · N Name box · → Skip · "
-                          "← Back · Ctrl+Z Undo · Esc Home")
+        self._hotkey_line("Click a face to untick it · 1-3 Pick a suggestion · Enter Save typed name · S Stranger · "
+                          "B Not a person · N Name box · → Skip · ← Back · Ctrl+Z Undo · Esc Home")
 
-    def _save_name(self, face_ids, typed):
+    def _save_name(self, face_ids, typed, rejected=()):
         from .. import people as people_mod
         c = Catalog(self.paths.catalog)
         try:
-            people_mod.name_group(c, face_ids, typed)
+            people_mod.name_group(c, face_ids, typed, rejected=list(rejected))
+            people_mod.match_all(c)               # the rest of the group is matched (or offered in the grid)
         finally:
             c.close()
 
-    def _confirm_name(self, existing, typed, face_ids, done):
+    def _confirm_name(self, existing, typed, face_ids, done, rejected=()):
         from .. import people as people_mod
         win = ctk.CTkToplevel(self)
         win.title("Did you mean…?")
@@ -1453,7 +1686,7 @@ class App(ctk.CTk):
 
         def pick(name):
             win.destroy()
-            self._save_name(face_ids, name)
+            self._save_name(face_ids, name, rejected)
             done()
         ctk.CTkButton(bar, text=f"No, add {new}", fg_color="transparent", border_width=1,
                       text_color=("gray20", "gray85"), command=lambda: pick(new)).pack(side="left")

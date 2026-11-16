@@ -98,9 +98,90 @@ def queue(cat: Catalog, derived_dir: str, categories: dict | None = None) -> lis
 def count(cat: Catalog) -> int:
     fixes = cat.scalar("SELECT COUNT(*) FROM fixes x JOIN assets a ON a.id = x.asset_id "
                        "JOIN active_files f ON f.id = a.file_id WHERE x.status = 'review'") or 0
-    content = cat.scalar("SELECT COUNT(*) FROM predictions p JOIN assets a ON a.id = p.asset_id "
-                         "JOIN active_files f ON f.id = a.file_id WHERE p.status = 'review'") or 0
+    skipped = skipped_checks(cat)
+    content = sum(n for k, n in cat.q("SELECT p.check_key, COUNT(*) FROM predictions p JOIN assets a "
+                                      "ON a.id = p.asset_id JOIN active_files f ON f.id = a.file_id "
+                                      "WHERE p.status = 'review' GROUP BY p.check_key") if k not in skipped)
     return fixes + content
+
+
+# ---- yes/no questions as a grid (wireframe 09b): many photos per screen -------------------------
+GRID_PAGE = 15
+
+
+def _last_run(cat: Catalog) -> str:
+    return str(cat.scalar("SELECT MAX(id) FROM runs") or 0)
+
+
+def skipped_checks(cat: Catalog) -> set[str]:
+    """Questions you chose to leave until after the next run ("Skip the rest of …")."""
+    run = _last_run(cat)
+    return {r[0][len("skip_check:"):] for r in cat.q("SELECT key, value FROM app_state WHERE key LIKE 'skip_check:%'")
+            if r[1] == run}
+
+
+def skip_check(cat: Catalog, check_key: str) -> None:
+    with cat.tx():
+        cat.db.execute("INSERT OR REPLACE INTO app_state(key, value) VALUES (?,?)",
+                       (f"skip_check:{check_key}", _last_run(cat)))
+
+
+@dataclass
+class GridPage:
+    check: str
+    title: str
+    subtitle: str
+    items: list           # [(asset_id, image path)]
+    page: int
+    pages: int
+    total: int
+
+
+def grid_page(cat: Catalog, derived_dir: str, categories: dict | None = None) -> GridPage | None:
+    """The next page of photos for the first unsure check, most uncertain first (they teach the most)."""
+    skipped = skipped_checks(cat)
+    mid = 0.475
+    rows = cat.q("""SELECT p.asset_id, p.check_key, p.prob, a.derived_path, f.orig_path
+                    FROM predictions p JOIN assets a ON a.id = p.asset_id JOIN active_files f ON f.id = a.file_id
+                    WHERE p.status = 'review' ORDER BY p.check_key""")
+    by: dict[str, list] = {}
+    for r in rows:
+        if r["check_key"] not in skipped:
+            by.setdefault(r["check_key"], []).append(r)
+    if not by:
+        return None
+    order = sorted(by, key=lambda k: (0 if k == "pet" else 1 if k.startswith("cat:") else 2, k))
+    check = order[0]
+    items = sorted(by[check], key=lambda r: (abs(r["prob"] - mid), r["asset_id"]))
+    total = len(items)
+    page_items = [(r["asset_id"], os.path.join(derived_dir, r["derived_path"]) if r["derived_path"] else r["orig_path"])
+                  for r in items[:GRID_PAGE]]
+    folder = (categories or {}).get(check.split(":", 1)[-1], (check.split(":", 1)[-1].title(), ""))[0]
+    if check == "pet":
+        title, sub = "Which of these have a pet in them?", "Picked ones go in Pets."
+    elif check == "junk":
+        title, sub = "Which of these are junk?", "Screenshots, memes, accidental shots. Picked ones go to _Junk (nothing is deleted)."
+    else:
+        title, sub = f"Which of these belong in {folder}?", f"Picked ones go in {folder}."
+    pages = (total + GRID_PAGE - 1) // GRID_PAGE
+    return GridPage(check, title, sub, page_items, 1, pages, total)
+
+
+def answer_page(cat: Catalog, check: str, yes: list[int], no: list[int]) -> list[int]:
+    """Save a whole page at once. Returns the answer ids (for Ctrl+Z)."""
+    from . import content
+    return [content.answer(cat, aid, check, True) for aid in yes] + \
+           [content.answer(cat, aid, check, False) for aid in no]
+
+
+def undo_page(cat: Catalog, answer_ids: list[int]) -> None:
+    with cat.tx():
+        for aid in answer_ids:
+            r = cat.one("SELECT asset_id, check_key FROM content_answers WHERE id=?", (aid,))
+            cat.db.execute("UPDATE content_answers SET undone=1 WHERE id=?", (aid,))
+            if r and r["asset_id"]:
+                cat.db.execute("INSERT OR REPLACE INTO predictions(asset_id, check_key, prob, status) "
+                               "VALUES (?,?,0.5,'review')", (r["asset_id"], r["check_key"]))
 
 
 # ---- rendering a whole photo from its original + current fixes ----------------------

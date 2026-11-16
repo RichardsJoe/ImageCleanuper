@@ -98,3 +98,25 @@ def test_no_question_twice_and_one_open_round(env):
     accuracy.close_round(cat)
     rid2 = accuracy.build_round(cat, s, seed=4)
     assert rid2 is None or not ({q.check for q in accuracy.questions(cat, derived, rid2)} & {"pet", "holiday"})
+
+
+def test_grid_answers_a_page_at_once(env):
+    from imagecleanuper import review
+    paths, s, cat, ids, derived = _setup(env)
+    with cat.tx():
+        cat.db.execute("DELETE FROM predictions")
+        for i, aid in enumerate(ids):
+            cat.db.execute("INSERT INTO predictions VALUES (?, 'pet', ?, 'review')", (aid, 0.40 + i * 0.03))
+            cat.db.execute("INSERT INTO predictions VALUES (?, 'junk', 0.5, 'review')", (aid,))
+    assert review.count(cat) == 12
+    pg = review.grid_page(cat, derived)
+    assert pg.check == "pet" and len(pg.items) == 6 and pg.title == "Which of these have a pet in them?"
+    first = pg.items[0][0]
+    tokens = review.answer_page(cat, "pet", [first], [a for a, _ in pg.items[1:]])
+    assert review.count(cat) == 6
+    assert cat.scalar("SELECT status FROM predictions WHERE asset_id=? AND check_key='pet'", (first,)) == "yes"
+    assert review.grid_page(cat, derived).check == "junk"
+    review.undo_page(cat, tokens)
+    assert review.count(cat) == 12
+    review.skip_check(cat, "pet")                    # "Skip the rest of Pets" until the next run
+    assert review.count(cat) == 6 and review.grid_page(cat, derived).check == "junk"
