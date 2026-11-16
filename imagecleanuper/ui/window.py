@@ -294,23 +294,74 @@ class App(ctk.CTk):
         self._footer(back=("Back", self.show_setup_folders), primary=("Next", save_and_next))
 
     # ---- settings (from Home) --------------------------------------------------
-    def _settings_tabs(self, parent):
-        """Tabs from wireframe 14. Only Folders exists so far; the others arrive with their phases."""
+    SETTINGS_TABS = ("Folders", "People", "Holidays & categories", "Accuracy", "Hotkeys", "Claude")
+
+    def _settings_tabs(self, parent, current="Folders"):
+        """Tabs from wireframe 14 (plus People). All tabs edit one draft; Save keeps everything."""
         tabs = ctk.CTkFrame(parent, fg_color="transparent")
         tabs.pack(fill="x", pady=(0, 12))
-        for name, ready in (("Folders", True), ("Holidays & categories", False), ("Accuracy", False),
-                            ("Hotkeys", False), ("Claude", False)):
-            ctk.CTkButton(tabs, text=name if ready else f"{name} · later", height=30, corner_radius=6,
-                          fg_color=BLUE if ready else "transparent", border_width=0 if ready else 1,
-                          text_color="white" if ready else ("gray50", "gray60"),
-                          state="normal" if ready else "disabled", width=10).pack(side="left", padx=(0, 6))
+        for name in self.SETTINGS_TABS:
+            on = name == current
+            ctk.CTkButton(tabs, text=name, height=30, corner_radius=6, width=10,
+                          fg_color=BLUE if on else "transparent", border_width=0 if on else 1,
+                          text_color="white" if on else ("gray20", "gray85"), hover_color=("gray85", "gray25"),
+                          command=lambda n=name: self._settings_switch(n)).pack(side="left", padx=(0, 6))
 
-    def show_settings(self):
-        """Everything on one screen. Works on a copy: Cancel throws changes away."""
+    def _settings_switch(self, tab):
+        for f in getattr(self, "_settings_flush", []):    # keep what you typed on the tab you're leaving
+            f()
+        self.show_settings(tab, keep=True)
+
+    def show_settings(self, tab: str = "Folders", keep: bool = False):
+        """Works on a draft copy: Cancel throws changes away, Save keeps changes from every tab."""
         import copy
-        s = copy.deepcopy(self.settings)
+        if not keep or getattr(self, "_settings_draft", None) is None:
+            self._settings_draft = copy.deepcopy(self.settings)
+        s = self._settings_draft
         b = self._screen("Settings", nav="settings")
-        self._settings_tabs(b)
+        self._settings_tabs(b, tab)
+        check_locations = None
+        self._settings_flush = []
+        if tab == "Folders":
+            check_locations = self._settings_folders(b, s)
+        elif tab == "People":
+            self._settings_people(b)
+        elif tab == "Holidays & categories":
+            self._settings_flush = [self._settings_holidays(b, s)]
+        elif tab == "Accuracy":
+            self._settings_flush = [self._settings_accuracy(b, s)]
+        elif tab == "Hotkeys":
+            self._settings_hotkeys(b)
+        elif tab == "Claude":
+            self._settings_claude(b, s)
+
+        def save():
+            if check_locations is not None and not check_locations():
+                return
+            for f in getattr(self, "_settings_flush", []):
+                f()
+            blocking = [p for p in settings_mod.check(s) if p.blocking]
+            if not s.masters:
+                blocking.insert(0, settings_mod.Problem("masters", "Add at least one photo folder (Folders tab)."))
+            if blocking:
+                self._notice("Please fix this first", "\n".join(p.message for p in blocking[:4]))
+                return
+            from ..paths import same_path
+            changed = (len(s.masters) != len(self.settings.masters)
+                       or not all(any(same_path(a, b) for b in self.settings.masters) for a in s.masters))
+            settings_mod.save(s, self.paths.settings)
+            self.settings, self.state_info.problems = settings_mod.load(self.paths.settings)
+            self._settings_draft = None
+            if changed:
+                self.folders_changed = True
+            self.show_home()
+
+        def cancel():
+            self._settings_draft = None
+            self.show_home()
+        self._footer(back=("Cancel", cancel), primary=("Save", save))
+
+    def _settings_folders(self, b, s):
         ctk.CTkLabel(b, text="Photo folders", font=ctk.CTkFont(size=15, weight="bold"), anchor="w").pack(fill="x")
         ctk.CTkLabel(b, text="Every top folder with photos in it. Subfolders are searched automatically.",
                      text_color=MUTED, anchor="w").pack(fill="x")
@@ -342,27 +393,269 @@ class App(ctk.CTk):
         redraw()
         check_locations = self._location_fields(b, s)
 
-        def save():
-            ok = check_locations()
-            for w in masters_msg.winfo_children():
+        return check_locations
+
+    def _section(self, b, title, text=""):
+        ctk.CTkLabel(b, text=title, font=ctk.CTkFont(size=15, weight="bold"), anchor="w").pack(fill="x", pady=(8, 0))
+        if text:
+            ctk.CTkLabel(b, text=text, text_color=MUTED, anchor="w", justify="left", wraplength=WRAP).pack(fill="x")
+
+    def _settings_people(self, b):
+        from .. import people as people_mod
+        self._section(b, "People", "Rename someone, or rename them to an existing name to merge the two. Click a "
+                      "face to mark it as a best sample (★): best samples count extra when recognising that "
+                      "person. Changes here are saved straight away.")
+        if not self.paths.catalog.exists():
+            ctk.CTkLabel(b, text="Nobody yet. Run first, then answer Who is this?", text_color=MUTED,
+                         anchor="w").pack(fill="x")
+            return
+        cat = Catalog(self.paths.catalog)
+        try:
+            ppl = people_mod.people_summary(cat)
+            strangers = people_mod.strangers_summary(cat)
+        finally:
+            cat.close()
+        self._images = []
+
+        def act(fn, *args):
+            c = Catalog(self.paths.catalog)
+            try:
+                fn(c, *args)
+            except ValueError as e:
+                self._notice("Please check", str(e))
+            finally:
+                c.close()
+            self.show_settings("People", keep=True)
+
+        def faces_row(parent, faces, clickable):
+            row = ctk.CTkFrame(parent, fg_color="transparent")
+            row.pack(side="left", padx=8)
+            for f in faces:
+                crop = str(self.paths.data / "faces" / f["crop_path"])
+                im = self._thumb(crop, (56, 56))
+                cell = ctk.CTkFrame(row, border_width=2 if f.get("best") else 0, border_color=AMBER,
+                                    fg_color="transparent")
+                cell.pack(side="left", padx=2)
+                if im is not None:
+                    self._images.append(im)
+                    lab = ctk.CTkLabel(cell, image=im, text="")
+                    lab.pack(padx=1, pady=1)
+                    if clickable:
+                        lab.bind("<Button-1>", lambda e, fid=f["id"]: act(people_mod.toggle_best, fid))
+        if not ppl:
+            ctk.CTkLabel(b, text="Nobody named yet.", text_color=MUTED, anchor="w").pack(fill="x")
+        for p in ppl:
+            row = ctk.CTkFrame(b)
+            row.pack(fill="x", pady=3)
+            name = ctk.CTkEntry(row, width=200)
+            name.insert(0, p["name"])
+            name.pack(side="left", padx=10, pady=8)
+            ctk.CTkButton(row, text="Rename", width=90,
+                          command=lambda e=name, pid=p["id"]: act(people_mod.rename_person, pid, e.get())
+                          ).pack(side="left")
+            ctk.CTkLabel(row, text=plural(p["photos"], "photo"), text_color=MUTED, width=90).pack(side="left", padx=8)
+            faces_row(row, p["faces"], True)
+        self._section(b, "Strangers", "People you marked as strangers. Type a name if you know who it is: they "
+                      "become a known person and get their own folder.")
+        if not strangers:
+            ctk.CTkLabel(b, text="No strangers.", text_color=MUTED, anchor="w").pack(fill="x")
+        for st in strangers:
+            row = ctk.CTkFrame(b)
+            row.pack(fill="x", pady=3)
+            ctk.CTkLabel(row, text=st["label"], width=120, anchor="w").pack(side="left", padx=10, pady=8)
+            ctk.CTkLabel(row, text=plural(st["photos"], "photo"), text_color=MUTED, width=80).pack(side="left")
+            faces_row(row, st["faces"], False)
+            e = ctk.CTkEntry(row, width=180, placeholder_text="Who is it?")
+            e.pack(side="right", padx=10)
+            ctk.CTkButton(row, text="Name", width=80,
+                          command=lambda e=e, sid=st["id"]: act(people_mod.name_stranger, sid, e.get())
+                          ).pack(side="right")
+
+    def _settings_holidays(self, b, s):
+        from ..dates import HOLIDAY_NAMES
+        from ..settings import DEFAULT_HOLIDAY_WINDOWS
+        self._section(b, "Holidays", "Photos taken this many days before or after a holiday go in its folder. "
+                      "Untick a holiday you don't want a folder for.")
+        grid = ctk.CTkFrame(b, fg_color="transparent")
+        grid.pack(fill="x", pady=4)
+        rows = []
+        for i, (key, name) in enumerate(HOLIDAY_NAMES.items()):
+            on = ctk.BooleanVar(value=key in s.holiday_windows)
+            bef, aft = s.holiday_windows.get(key, DEFAULT_HOLIDAY_WINDOWS.get(key, (1, 1)))
+            r, c = divmod(i, 2)
+            cell = ctk.CTkFrame(grid, fg_color="transparent")
+            cell.grid(row=r, column=c, sticky="w", padx=(0, 30), pady=2)
+            ctk.CTkCheckBox(cell, text=name, variable=on, width=180).pack(side="left")
+            eb = ctk.CTkEntry(cell, width=44)
+            eb.insert(0, str(bef))
+            eb.pack(side="left")
+            ctk.CTkLabel(cell, text=" days before ", text_color=MUTED).pack(side="left")
+            ea = ctk.CTkEntry(cell, width=44)
+            ea.insert(0, str(aft))
+            ea.pack(side="left")
+            ctk.CTkLabel(cell, text=" after", text_color=MUTED).pack(side="left")
+            rows.append((key, on, eb, ea))
+
+        self._section(b, "Your own events", "Birthdays, anniversaries, a yearly trip: they get a folder like a "
+                      "holiday. Month and day as numbers.")
+        ev_box = ctk.CTkFrame(b, fg_color="transparent")
+        ev_box.pack(fill="x")
+        events = [list(e) for e in s.custom_events]
+
+        def draw_events():
+            for w in ev_box.winfo_children():
                 w.destroy()
-            mprobs = [p for p in settings_mod.check(s) if p.field == "masters" and p.blocking]
-            if not s.masters:
-                mprobs.insert(0, settings_mod.Problem("masters", "Add at least one photo folder."))
-            for p in mprobs[:3]:
-                ctk.CTkLabel(masters_msg, text=p.message, text_color=AMBER, anchor="w", justify="left",
-                             wraplength=WRAP).pack(fill="x")
-            if not ok or mprobs:
-                return
-            from ..paths import same_path
-            changed = (len(s.masters) != len(self.settings.masters)
-                       or not all(any(same_path(a, b) for b in self.settings.masters) for a in s.masters))
-            settings_mod.save(s, self.paths.settings)
-            self.settings, self.state_info.problems = settings_mod.load(self.paths.settings)
-            if changed:
-                self.folders_changed = True
-            self.show_home()
-        self._footer(back=("Cancel", self.show_home), primary=("Save", save))
+            for ev in events:
+                r = ctk.CTkFrame(ev_box, fg_color="transparent")
+                r.pack(fill="x", pady=1)
+                ctk.CTkLabel(r, text=f"{ev[0]}  ·  {ev[1]}/{ev[2]}  ·  {ev[3]} before, {ev[4]} after",
+                             anchor="w").pack(side="left")
+                ctk.CTkButton(r, text="Remove", width=80, fg_color="transparent", border_width=1,
+                              text_color=("gray20", "gray85"),
+                              command=lambda ev=ev: (events.remove(ev), draw_events())).pack(side="left", padx=10)
+            add = ctk.CTkFrame(ev_box, fg_color="transparent")
+            add.pack(fill="x", pady=4)
+            fields = []
+            for ph, w in (("Name, e.g. Calvin's Birthday", 220), ("Month", 64), ("Day", 56), ("Before", 64),
+                          ("After", 64)):
+                e = ctk.CTkEntry(add, placeholder_text=ph, width=w)
+                e.pack(side="left", padx=(0, 6))
+                fields.append(e)
+
+            def add_event():
+                import datetime as _dt
+                try:
+                    name = fields[0].get().strip()
+                    m, d = int(fields[1].get()), int(fields[2].get())
+                    bf, af = int(fields[3].get() or 0), int(fields[4].get() or 0)
+                    _dt.date(2000, m, d)
+                    if not name:
+                        raise ValueError
+                except ValueError:
+                    self._notice("Please check", "Type a name, and month and day as numbers (e.g. 7 and 14).")
+                    return
+                events.append([name, m, d, max(0, bf), max(0, af)])
+                draw_events()
+            ctk.CTkButton(add, text="+ Add event", width=120, command=add_event).pack(side="left")
+        draw_events()
+
+        self._section(b, "Categories", "Extra folders the image model sorts into. Describe what you can SEE in "
+                      "these photos; your Yes/No answers teach it the rest.")
+        cat_box = ctk.CTkFrame(b, fg_color="transparent")
+        cat_box.pack(fill="x")
+        cats = {k: [v[0], v[1]] for k, v in s.categories.items()}
+        cat_fields = {}
+
+        def draw_cats():
+            for w in cat_box.winfo_children():
+                w.destroy()
+            cat_fields.clear()
+            for key, (folder, desc) in cats.items():
+                r = ctk.CTkFrame(cat_box, fg_color="transparent")
+                r.pack(fill="x", pady=2)
+                ef = ctk.CTkEntry(r, width=160)
+                ef.insert(0, folder)
+                ef.pack(side="left")
+                ed = ctk.CTkEntry(r)
+                ed.insert(0, desc)
+                ed.pack(side="left", fill="x", expand=True, padx=6)
+                ctk.CTkButton(r, text="Remove", width=80, fg_color="transparent", border_width=1,
+                              text_color=("gray20", "gray85"),
+                              command=lambda k=key: (cats.pop(k), draw_cats())).pack(side="left")
+                cat_fields[key] = (ef, ed)
+
+            def add_cat():
+                n = 1
+                while f"custom{n}" in cats:
+                    n += 1
+                cats[f"custom{n}"] = ["New folder", ""]
+                draw_cats()
+            ctk.CTkButton(cat_box, text="+ Add a category", width=160, command=add_cat).pack(anchor="w", pady=4)
+        draw_cats()
+
+        def flush():
+            win = {}
+            for key, on, eb, ea in rows:
+                if on.get():
+                    try:
+                        win[key] = (max(0, min(14, int(eb.get()))), max(0, min(14, int(ea.get()))))
+                    except ValueError:
+                        win[key] = DEFAULT_HOLIDAY_WINDOWS.get(key, (1, 1))
+            s.holiday_windows = win
+            s.custom_events = [tuple(e) for e in events]
+            new = {}
+            for key, (ef, ed) in cat_fields.items():
+                folder, desc = ef.get().strip(), ed.get().strip()
+                if folder and desc:
+                    new[key] = (folder, desc)
+            s.categories = new
+        return flush
+
+    def _settings_accuracy(self, b, s):
+        self._section(b, "Accuracy check", "Blind questions that measure how often the app is right. Checks that "
+                      "stay above the target get fewer questions.")
+        fields = []
+        for label, attr, scale in (("Target accuracy (%)", "accuracy_target", 100),
+                                   ("Questions in the first round", "accuracy_start_items", 1),
+                                   ("Fewest questions per check", "accuracy_min_per_check", 1),
+                                   ("Rounds above target before asking fewer", "accuracy_rounds_to_shrink", 1)):
+            r = ctk.CTkFrame(b, fg_color="transparent")
+            r.pack(fill="x", pady=3)
+            ctk.CTkLabel(r, text=label, width=320, anchor="w").pack(side="left")
+            e = ctk.CTkEntry(r, width=90)
+            v = getattr(s, attr)
+            e.insert(0, str(int(round(v * scale))))
+            e.pack(side="left")
+            fields.append((attr, scale, e))
+        self._section(b, "People", "")
+        for label, attr in (("Faces per Who is this? round", "people_per_round"),
+                            ("Smallest face to look at (pixels)", "min_face_px")):
+            r = ctk.CTkFrame(b, fg_color="transparent")
+            r.pack(fill="x", pady=3)
+            ctk.CTkLabel(r, text=label, width=320, anchor="w").pack(side="left")
+            e = ctk.CTkEntry(r, width=90)
+            e.insert(0, str(getattr(s, attr)))
+            e.pack(side="left")
+            fields.append((attr, 1, e))
+
+        def flush():
+            limits = {"accuracy_target": (50, 100), "accuracy_start_items": (5, 500), "accuracy_min_per_check": (1, 50),
+                      "accuracy_rounds_to_shrink": (1, 10), "people_per_round": (5, 100), "min_face_px": (20, 400)}
+            for attr, scale, e in fields:
+                try:
+                    lo, hi = limits[attr]
+                    v = max(lo, min(hi, int(float(e.get()))))
+                    setattr(s, attr, v / 100 if scale == 100 else v)
+                except ValueError:
+                    pass
+        return flush
+
+    HOTKEYS = (("Anywhere", (("Enter", "Next step / confirm / Approve"), ("Esc", "Back / close"),
+                             ("R", "Run"), ("V", "Review"), ("P", "Report"), ("F", "Finish"), ("F1", "Hotkeys"),
+                             ("Ctrl+Z", "Undo your last answer"))),
+               ("Running", (("Space", "Pause"),)),
+               ("Who is this?", (("1 2 3", "Pick a suggested name"), ("Enter", "Save the typed name"),
+                                 ("S", "Stranger"))),
+               ("Needs review / Accuracy check", (("1–9", "Answer"), ("Y / N", "Yes / No"), ("→", "Skip"),
+                                                  ("←", "Back"))),
+               ("Duplicates & bursts", (("1–9", "Select a copy"), ("D", "Keep selected, remove the rest"),
+                                        ("K", "Keep all"))),
+               ("Report", (("Click", "Select a photo"), ("M", "Move it to another folder"),
+                           ("Del", "Remove it from this folder"), ("O", "Show the original"))))
+
+    def _settings_hotkeys(self, b):
+        self._section(b, "Hotkeys", "Every action has a key. Press F1 anywhere to see this list.")
+        for group, keys in self.HOTKEYS:
+            ctk.CTkLabel(b, text=group, font=ctk.CTkFont(weight="bold"), anchor="w").pack(fill="x", pady=(8, 2))
+            for k, what in keys:
+                r = ctk.CTkFrame(b, fg_color="transparent")
+                r.pack(fill="x")
+                ctk.CTkLabel(r, text=k, width=110, anchor="w", font=ctk.CTkFont(family="Consolas", size=13)
+                             ).pack(side="left")
+                ctk.CTkLabel(r, text=what, anchor="w").pack(side="left")
+
+    def _settings_claude(self, b, s):
+        self._section(b, "Claude second opinion", "Coming in the next update.")
 
     # ---- setup step 3: ready ---------------------------------------------------
     def show_setup_ready(self):
@@ -1853,12 +2146,17 @@ class App(ctk.CTk):
     def show_hotkeys(self):
         win = ctk.CTkToplevel(self)
         win.title("Hotkeys")
-        win.geometry("420x260")
-        text = ("Enter    Next step / confirm\nEsc      Back / close\nR        Run\nA        Add a folder (setup)\n"
-                "Space    Pause a run\nF1       This list")
-        ctk.CTkLabel(win, text=text, font=ctk.CTkFont(family="Consolas", size=14), justify="left"
-                     ).pack(padx=24, pady=24, anchor="w")
+        win.transient(self)
+        lines = []
+        for group, keys in self.HOTKEYS:
+            lines.append(group)
+            lines += [f"  {k:<8} {what}" for k, what in keys]
+            lines.append("")
+        ctk.CTkLabel(win, text="\n".join(lines).rstrip(), font=ctk.CTkFont(family="Consolas", size=13),
+                     justify="left").pack(padx=24, pady=20, anchor="w")
         win.bind("<Escape>", lambda e: win.destroy())
+        win.bind("<Return>", lambda e: win.destroy())
+        self._centre(win)
 
 
 def run_window() -> int:

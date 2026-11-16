@@ -122,6 +122,9 @@ def load(path: Path) -> tuple[Settings, list[str]]:
         for k, v in cp["Holidays"].items():
             if k.startswith("window."):
                 name = k[len("window."):]
+                if v.strip().lower() == "off":        # a default holiday you switched off
+                    s.holiday_windows.pop(name, None)
+                    continue
                 try:
                     before, after = (int(x) for x in v.split(","))
                     if not (0 <= before <= 14 and 0 <= after <= 14):
@@ -132,6 +135,9 @@ def load(path: Path) -> tuple[Settings, list[str]]:
     for sec in cp.sections():
         if sec.lower().startswith("category:"):
             key = sec.split(":", 1)[1].strip().lower()
+            if cp[sec].get("off", "").strip().lower() in ("yes", "1", "true"):   # a default category you removed
+                s.categories.pop(key, None)
+                continue
             desc = cp[sec].get("description", "").strip()
             folder = cp[sec].get("folder", "").strip() or sec.split(":", 1)[1].strip().title()
             if key and desc:
@@ -248,6 +254,12 @@ def save(s: Settings, path: Path) -> None:
     cp["Holidays"] = {"country": s.holiday_country}
     for k, (b, a) in s.holiday_windows.items():
         cp["Holidays"][f"window.{k}"] = f"{b},{a}"
+    for k in DEFAULT_HOLIDAY_WINDOWS:
+        if k not in s.holiday_windows:
+            cp["Holidays"][f"window.{k}"] = "off"
+    for k in DEFAULT_CATEGORIES:
+        if k not in s.categories:
+            cp[f"Category:{k}"] = {"off": "yes"}
     for key, (folder, desc) in s.categories.items():
         cp[f"Category:{key}"] = {"folder": folder, "description": desc}
     for name, month, day, before, after in s.custom_events:

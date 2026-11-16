@@ -109,7 +109,7 @@ A checklist (backup verified, accuracy), exactly what will happen, and typing FI
 ![Finish](wireframes/13-finish.svg)
 
 ### 12. Settings and Connect Claude
-Tabs for Folders, Holidays & categories, Accuracy, Hotkeys and Claude. Turning Claude on opens the API key popup.
+Tabs for Folders, People, Holidays & categories, Accuracy, Hotkeys and Claude. All tabs edit one draft; Save keeps changes from every tab, Cancel drops them. **People** lists everyone you've named (rename; renaming to an existing name merges them; click a face to mark a best sample ★) and your Strangers (type a name and they become a known person). Turning Claude on opens the API key popup.
 
 ![Settings and Claude](wireframes/14-settings-claude.svg)
 

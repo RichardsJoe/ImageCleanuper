@@ -275,3 +275,79 @@ def suggest_for_group(cat: Catalog, face_ids: list[int], k: int = 3) -> list[tup
             if len(out) >= k:
                 break
     return out
+
+
+# ---- People & strangers management (Settings › People) -----------------------------------------
+def people_summary(cat: Catalog) -> list[dict]:
+    """Every named person with how many photos they're in and some faces (best samples first)."""
+    out = []
+    for p in cat.q("SELECT id, name FROM people WHERE merged_into IS NULL ORDER BY name"):
+        faces = [dict(r) for r in cat.q(
+            "SELECT id, crop_path, best FROM faces WHERE person_id=? AND crop_path IS NOT NULL "
+            "ORDER BY best DESC, locked DESC, IFNULL(match_score, 1) DESC LIMIT 8", (p["id"],))]
+        photos = cat.scalar("SELECT COUNT(DISTINCT asset_id) FROM faces WHERE person_id=?", (p["id"],))
+        out.append({"id": p["id"], "name": p["name"], "photos": photos, "faces": faces})
+    return out
+
+
+def strangers_summary(cat: Catalog) -> list[dict]:
+    out = []
+    for s in cat.q("SELECT id, label FROM strangers ORDER BY id"):
+        faces = [dict(r) for r in cat.q("SELECT id, crop_path FROM faces WHERE stranger_id=? AND crop_path IS NOT NULL "
+                                        "LIMIT 6", (s["id"],))]
+        photos = cat.scalar("SELECT COUNT(DISTINCT asset_id) FROM faces WHERE stranger_id=?", (s["id"],))
+        if photos or cat.scalar("SELECT 1 FROM face_refs WHERE stranger_id=?", (s["id"],)):
+            out.append({"id": s["id"], "label": s["label"], "photos": photos, "faces": faces})
+    return out
+
+
+def _person_id(cat: Catalog, name: str) -> int:
+    row = cat.one("SELECT id FROM people WHERE name=? COLLATE NOCASE AND merged_into IS NULL", (name,))
+    if row:
+        return row["id"]
+    return cat.db.execute("INSERT INTO people(name, created_at) VALUES (?,?)", (name, time.time())).lastrowid
+
+
+def rename_person(cat: Catalog, person_id: int, typed: str) -> str:
+    """Rename someone. Renaming to a name that already exists merges the two people."""
+    name = proper_case(typed)
+    if not name:
+        raise ValueError("Type a name.")
+    with cat.tx():
+        other = cat.one("SELECT id FROM people WHERE name=? COLLATE NOCASE AND merged_into IS NULL AND id<>?",
+                        (name, person_id))
+        if other:
+            cat.db.execute("UPDATE faces SET person_id=? WHERE person_id=?", (other["id"], person_id))
+            cat.db.execute("UPDATE face_refs SET person_id=? WHERE person_id=?", (other["id"], person_id))
+            cat.db.execute("UPDATE people SET merged_into=?, name=name || ' (merged ' || id || ')' WHERE id=?",
+                           (other["id"], person_id))
+        else:
+            cat.db.execute("UPDATE people SET name=? WHERE id=?", (name, person_id))
+    return name
+
+
+def name_stranger(cat: Catalog, stranger_id: int, typed: str) -> str:
+    """A stranger turns out to be someone you know: they become (or join) that person."""
+    name = proper_case(typed)
+    if not name:
+        raise ValueError("Type a name.")
+    with cat.tx():
+        pid = _person_id(cat, name)
+        cat.db.execute("UPDATE faces SET person_id=?, stranger_id=NULL WHERE stranger_id=?", (pid, stranger_id))
+        cat.db.execute("UPDATE face_refs SET person_id=?, stranger_id=NULL WHERE stranger_id=?", (pid, stranger_id))
+        cat.db.execute("DELETE FROM strangers WHERE id=?", (stranger_id,))
+    return name
+
+
+def toggle_best(cat: Catalog, face_id: int) -> bool:
+    """Mark or unmark a face as a best sample (counts extra when recognising that person)."""
+    f = cat.one("SELECT best, embedding FROM faces WHERE id=?", (face_id,))
+    new = 0 if f["best"] else 1
+    with cat.tx():
+        cat.db.execute("UPDATE faces SET best=?, locked=1 WHERE id=?", (new, face_id))
+        cat.db.execute("UPDATE face_refs SET best=? WHERE embedding=?", (new, f["embedding"]))
+        if new and not cat.scalar("SELECT 1 FROM face_refs WHERE embedding=?", (f["embedding"],)):
+            r = cat.one("SELECT person_id, stranger_id FROM faces WHERE id=?", (face_id,))
+            cat.db.execute("INSERT INTO face_refs(person_id, stranger_id, embedding, best, created_at) "
+                           "VALUES (?,?,?,1,?)", (r["person_id"], r["stranger_id"], f["embedding"], time.time()))
+    return bool(new)

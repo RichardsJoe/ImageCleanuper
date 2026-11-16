@@ -23,6 +23,10 @@ def test_screens_open(env):
                      app.show_restore, app.show_restore_search, app.show_hotkeys):
             show()
             app.update()
+        for tab in app.SETTINGS_TABS:
+            app.show_settings(tab, keep=True)
+            app.update()
+        app._settings_draft = None
         # Approve and sort from the Report: progress screen, then Home with the summary.
         import os
         import time
